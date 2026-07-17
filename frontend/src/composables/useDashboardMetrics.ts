@@ -20,6 +20,8 @@ export function useDashboardMetrics() {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const lastUpdate = ref<Date | null>(null)
+  /** 摘要成功刷新计数：驱动机械滚轮在每次 load/refresh 重播。 */
+  const metricsRevealKey = ref(0)
   const summary = ref<MetricsSummaryResponse | null>(null)
   const timeSeriesTimestamps = ref<string[]>([])
   const timeSeriesSeries = ref<TimeSeriesModelSeries[]>([])
@@ -133,7 +135,11 @@ export function useDashboardMetrics() {
     error.value = null
     try {
       const tasks: Promise<unknown>[] = [
-        getSummary(query.value).then((data) => { summary.value = data }),
+        getSummary(query.value).then((data) => {
+          summary.value = data
+          // 与数据同帧递增，避免先挂载再二次触发导致双重动画。
+          metricsRevealKey.value += 1
+        }),
         loadTimeSeries(),
         getByModel(query.value).then((response) => { modelStats.value = response.data }),
         loadHeatmap()
@@ -170,7 +176,8 @@ export function useDashboardMetrics() {
   onUnmounted(stopAutoRefresh)
 
   return {
-    loading, error, lastUpdateText, summary, timeSeriesTimestamps, timeSeriesSeries, modelStats,
+    loading, error, lastUpdateText, summary, metricsRevealKey,
+    timeSeriesTimestamps, timeSeriesSeries, modelStats,
     heatmapPoints, heatmapDays, heatmapError, timeRange, metric, successRate,
     includeCache, userScope, scopeLabel, PERSONAL_USER_EMAIL,
     selectedDate, intradayPoints, intradayLoading, intradayError,
