@@ -50,7 +50,7 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import {
   Chart, CategoryScale, LinearScale, PointElement, LineElement, LineController,
-  Filler, Tooltip, type ChartConfiguration
+  Filler, Tooltip,
 } from 'chart.js'
 import {
   type ModelSeries,
@@ -60,9 +60,12 @@ import {
   dataKey,
   detectTimestampShift,
   formatAxisLabel,
-  formatMetricValue,
   modelsKey,
 } from './chartStackSeries'
+import { reindexDatasetsToLength, writeStackedDatasets } from './chartLineMutations'
+import { buildTimeSeriesChartConfig } from './timeSeriesChartConfig'
+
+// Layer: L2 流程层 — chart lifecycle: slide (live window) vs morph (metric/range).
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, LineController, Filler, Tooltip)
 
@@ -167,90 +170,14 @@ function playSlideLeft(shiftCount: number, prevLen: number) {
 
 function createChart() {
   if (!chartCanvas.value) return
-  const config: ChartConfiguration<'line'> = {
-    type: 'line',
-    data: { labels: [], datasets: [] },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      animations: {
-        x: false,
-        colors: false,
-        numbers: { duration: 0 },
-      },
-      transitions: {
-        active: { animation: { duration: 0 } },
-        resize: { animation: { duration: 0 } },
-        show: { animations: { numbers: { duration: 0 } } },
-        hide: { animations: { numbers: { duration: 0 } } },
-      },
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          mode: 'index', intersect: false,
-          backgroundColor: 'rgba(28,28,30,0.96)',
-          titleColor: '#f5f5f7', bodyColor: '#d1d1d6',
-          footerColor: '#f5f5f7',
-          borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
-          itemSort(a, b) {
-            return (a.datasetIndex ?? 0) - (b.datasetIndex ?? 0)
-          },
-          callbacks: {
-            label(ctx) {
-              const ds = ctx.dataset as StackedLineDataset
-              const raw = ds.rawValues?.[ctx.dataIndex] ?? 0
-              return `${ctx.dataset.label}: ${formatMetricValue(raw, props.metric)}`
-            },
-            footer(items) {
-              const total = items.reduce((acc, it) => {
-                const ds = it.dataset as StackedLineDataset
-                return acc + (ds.rawValues?.[it.dataIndex] ?? 0)
-              }, 0)
-              return `Total: ${formatMetricValue(total, props.metric)}`
-            },
-          },
-        },
-      },
-      scales: {
-        x: {
-          stacked: false, grid: { display: false },
-          ticks: { color: '#86868B', maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
-          border: { color: 'rgba(255,255,255,0.12)' },
-        },
-        y: {
-          stacked: false, beginAtZero: true,
-          grid: { color: 'rgba(255,255,255,0.08)' },
-          ticks: { color: '#86868B' },
-          border: { color: 'rgba(255,255,255,0.12)' },
-        },
-      },
-    },
-  }
-  chartInstance = new Chart(chartCanvas.value, config)
+  chartInstance = new Chart(chartCanvas.value, buildTimeSeriesChartConfig(() => props.metric))
 }
 
 function writeChartData(range: string, timestamps: string[], series: ModelSeries[], mutateInPlace: boolean) {
   if (!chartInstance) return
   const labels = timestamps.map((ts) => formatAxisLabel(ts, range))
   const datasets = buildDatasets(series)
-  chartInstance.data.labels = labels
-
-  if (mutateInPlace && chartInstance.data.datasets.length === datasets.length) {
-    for (let i = 0; i < datasets.length; i++) {
-      const target = chartInstance.data.datasets[i] as StackedLineDataset
-      const src = datasets[i]
-      target.label = src.label
-      target.data = src.data
-      target.rawValues = src.rawValues
-      target.borderColor = src.borderColor
-      target.backgroundColor = src.backgroundColor
-      target.fill = src.fill
-    }
-  } else {
-    chartInstance.data.datasets = datasets
-  }
+  writeStackedDatasets(chartInstance, labels, datasets, mutateInPlace)
   syncLegend(datasets)
 }
 
@@ -263,15 +190,30 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   const shift = detectTimestampShift(prevTs, timestamps)
   const sameModels = modelsKey(series) === lastModelsKey && lastModelsKey !== ''
   const canSlide = shift > 0 && sameModels && prevLen > 0
+  const isFirstPaint = prevLen === 0 || chartInstance.data.datasets.length === 0
+  // Morph: metric (USD/token) or time-range change — stretch/shrink shape + color.
+  // Not for pure sliding-window live ticks (those keep CSS slide, no Chart.js tween).
+  const canMorph = !isFirstPaint && !canSlide && sameModels && timestamps.length > 0
 
   setYTickFormat(chartInstance, metric)
   resetStageTransform()
-  writeChartData(range, timestamps, series, sameModels && chartInstance.data.datasets.length > 0)
-  // No Chart.js tween — avoids shrink/reflow; slide is CSS on the stage.
-  chartInstance.update('none')
 
-  if (canSlide) {
-    playSlideLeft(shift, prevLen)
+  if (canMorph) {
+    const labels = timestamps.map((ts) => formatAxisLabel(ts, range))
+    const oldLen = (chartInstance.data.datasets[0]?.data as number[] | undefined)?.length ?? 0
+    const newLen = labels.length
+    // Same-length morph is pure y/color; different length needs reindex first.
+    if (oldLen > 0 && newLen > 0 && oldLen !== newLen) {
+      reindexDatasetsToLength(chartInstance, newLen, labels)
+    }
+    writeChartData(range, timestamps, series, true)
+    // Runtime accepts custom transition names; Chart.js typings only list built-ins.
+    chartInstance.update('morph' as 'none')
+  } else {
+    writeChartData(range, timestamps, series, sameModels && chartInstance.data.datasets.length > 0)
+    // First paint / model-set change / slide: no Chart.js tween.
+    chartInstance.update('none')
+    if (canSlide) playSlideLeft(shift, prevLen)
   }
 
   lastTimestamps = timestamps.slice()

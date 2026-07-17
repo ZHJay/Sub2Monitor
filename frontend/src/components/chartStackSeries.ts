@@ -25,6 +25,9 @@ const STACK_COLORS_BOTTOM_TO_TOP = [
 
 export const STACK_ID = 'models'
 export const SLIDE_MS = 480
+/** Metric / time-range morph duration (stretch-shrink + color). */
+export const MORPH_MS = 560
+export const MORPH_EASING = 'easeInOutCubic'
 
 function colorForStackIndex(index: number, count: number): { fill: string; stroke: string } {
   const palette = STACK_COLORS_BOTTOM_TO_TOP
@@ -59,6 +62,31 @@ export function dataKey(timestamps: string[], series: ModelSeries[], metric: str
 
 export function modelsKey(series: ModelSeries[]): string {
   return series.map((s) => s.model).join('\0')
+}
+
+/**
+ * Resample a polyline onto `targetLen` points via linear interpolation.
+ * Why: Chart.js only morphs y when index counts match; length-changing
+ * range switches need a same-length intermediate frame before animating.
+ */
+export function resampleNumbers(values: number[], targetLen: number): number[] {
+  if (targetLen <= 0) return []
+  if (values.length === 0) return new Array(targetLen).fill(0)
+  if (values.length === targetLen) return values.slice()
+  if (targetLen === 1) return [values[values.length - 1] ?? 0]
+
+  const out = new Array<number>(targetLen)
+  const last = values.length - 1
+  for (let i = 0; i < targetLen; i++) {
+    const t = (i / (targetLen - 1)) * last
+    const lo = Math.floor(t)
+    const hi = Math.min(last, lo + 1)
+    const frac = t - lo
+    const a = values[lo] ?? 0
+    const b = values[hi] ?? 0
+    out[i] = a + (b - a) * frac
+  }
+  return out
 }
 
 /** How many leading timestamps dropped from prev when window slid to next. -1 = not a pure slide. */

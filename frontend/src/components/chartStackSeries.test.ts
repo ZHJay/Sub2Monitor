@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectTimestampShift, buildDatasets } from './chartStackSeries'
+import { detectTimestampShift, buildDatasets, resampleNumbers } from './chartStackSeries'
 
 describe('detectTimestampShift', () => {
   it('returns 0 for identical window', () => {
@@ -31,5 +31,26 @@ describe('buildDatasets', () => {
     expect(ds[1].rawValues).toEqual([3, 4])
     expect(ds[0].fill).toBe('origin')
     expect(ds[1].fill).toBe('-1')
+  })
+})
+
+describe('resampleNumbers', () => {
+  it('returns a copy when length already matches', () => {
+    const src = [1, 2, 3]
+    const out = resampleNumbers(src, 3)
+    expect(out).toEqual([1, 2, 3])
+    expect(out).not.toBe(src)
+  })
+
+  it('interpolates when expanding', () => {
+    expect(resampleNumbers([0, 10], 3)).toEqual([0, 5, 10])
+  })
+
+  it('interpolates when shrinking', () => {
+    expect(resampleNumbers([0, 5, 10, 15], 2)).toEqual([0, 15])
+  })
+
+  it('fills zeros from empty source', () => {
+    expect(resampleNumbers([], 4)).toEqual([0, 0, 0, 0])
   })
 })
