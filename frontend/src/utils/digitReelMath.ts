@@ -66,8 +66,9 @@ export function planReelSpin(
   reducedMotion: boolean
 ): ReelSpinPlan {
   const safeDigit = ((digit % 10) + 10) % 10
+  // reducedMotion：单格条带，停在 index 0，禁止 translate 到空区。
   if (reducedMotion) {
-    return { cycles: 0, durationMs: 0, delayMs: 0, finalIndex: safeDigit }
+    return { cycles: 0, durationMs: 0, delayMs: 0, finalIndex: 0 }
   }
 
   const cycles = BASE_CYCLES + fromRight * CYCLE_STEP
@@ -76,19 +77,22 @@ export function planReelSpin(
     MIN_DURATION_MS + fromRight * DURATION_STEP_MS
   )
   const delayMs = fromRight * DELAY_STEP_MS
+  // Invariant: strip[i] === i % 10，且 strip[finalIndex] === safeDigit。
   const finalIndex = cycles * 10 + safeDigit
   return { cycles, durationMs, delayMs, finalIndex }
 }
 
-/** 生成滚轮条带：0–9 重复 cycles 次，再接到目标数字。 */
+/**
+ * 生成滚轮条带，长度 = finalIndex + 1。
+ * Why: 旧实现只追加 1 格目标位，但 finalIndex = cycles*10+digit，
+ * 会 translate 超出条带 → 动画结束空白。
+ */
 export function buildReelStrip(digit: number, cycles: number): number[] {
   const safeDigit = ((digit % 10) + 10) % 10
   if (cycles <= 0) return [safeDigit]
+  const finalIndex = cycles * 10 + safeDigit
   const strip: number[] = []
-  for (let c = 0; c < cycles; c += 1) {
-    for (let d = 0; d < 10; d += 1) strip.push(d)
-  }
-  strip.push(safeDigit)
+  for (let i = 0; i <= finalIndex; i += 1) strip.push(i % 10)
   return strip
 }
 

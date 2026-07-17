@@ -47,16 +47,28 @@ describe('planReelSpin', () => {
       cycles: 0,
       durationMs: 0,
       delayMs: 0,
-      finalIndex: 7,
+      finalIndex: 0,
     })
+  })
+
+  it('finalIndex always lands on a real strip cell with the target digit', () => {
+    for (const fromRight of [0, 1, 4]) {
+      for (const digit of [0, 4, 9]) {
+        const plan = planReelSpin(digit, fromRight, false)
+        const strip = buildReelStrip(digit, plan.cycles)
+        expect(strip.length).toBe(plan.finalIndex + 1)
+        expect(strip[plan.finalIndex]).toBe(digit)
+      }
+    }
   })
 })
 
 describe('buildReelStrip', () => {
   it('ends on the target digit after full cycles', () => {
     const strip = buildReelStrip(4, 2)
-    expect(strip).toHaveLength(21)
-    expect(strip[strip.length - 1]).toBe(4)
+    // finalIndex = 2*10+4 = 24 → length 25
+    expect(strip).toHaveLength(25)
+    expect(strip[24]).toBe(4)
     expect(strip.slice(0, 10)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
   })
 })
