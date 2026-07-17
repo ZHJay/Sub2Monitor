@@ -63,6 +63,20 @@ func AggregateTimeSeries(db *gorm.DB, filter l0_axioms.MetricsFilter, timeRange,
 		return nil, fmt.Errorf("failed to get time series: %w", err)
 	}
 	timestamps, series, totals := l1_blocks.BuildStackedSeries(points)
+
+	// Zero-fill the selected window so short ranges (1h/6h) and sparse data
+	// still span the full chart width instead of a truncated axis.
+	start, err := l1_blocks.GetTimeWindow(timeRange)
+	if err != nil {
+		return nil, err
+	}
+	intervalMin, err := l1_blocks.GetIntervalMinutes(interval)
+	if err != nil {
+		return nil, err
+	}
+	end := time.Now()
+	timestamps, series, totals = l1_blocks.PadStackedSeriesToWindow(timestamps, series, totals, start, end, intervalMin)
+
 	return &l0_axioms.TimeSeriesResponse{
 		Timestamps:   timestamps,
 		Series:       series,

@@ -70,7 +70,8 @@ export function useDashboardMetrics() {
     const requestSequence = ++timeSeriesRequestSequence
     const requestedRange = timeRange.value
     const requestedMetric = metric.value
-    const interval = requestedRange === '1h' ? '15min' : '1h'
+    // Short windows use 15m buckets so the axis has enough points to span full width smoothly.
+    const interval = (requestedRange === '1h' || requestedRange === '6h') ? '15min' : '1h'
     try {
       const response = await getTimeSeries(requestedRange, interval, requestedMetric, query.value)
       if (requestSequence === timeSeriesRequestSequence) {

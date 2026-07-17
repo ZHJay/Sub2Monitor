@@ -97,8 +97,11 @@ export function buildTimeSeriesChartConfig(
       scales: {
         x: {
           stacked: false,
-          grid: { display: false },
-          ticks: { color: '#86868B', maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
+          // Edge-to-edge categories so 1h/6h (few buckets) span the same plot width as 24h/7d.
+          offset: false,
+          bounds: 'ticks',
+          grid: { display: false, offset: false },
+          ticks: { color: '#86868B', maxRotation: 0, autoSkip: true, maxTicksLimit: 8, align: 'inner' },
           border: { color: 'rgba(255,255,255,0.12)' },
         },
         y: {
