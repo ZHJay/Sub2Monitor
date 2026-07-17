@@ -56,13 +56,15 @@ import {
   type ModelSeries,
   type StackedLineDataset,
   SLIDE_MS,
+  bridgeSeriesForMorph,
   buildDatasets,
+  cloneSeries,
   dataKey,
   detectTimestampShift,
   formatAxisLabel,
   modelsKey,
 } from './chartStackSeries'
-import { reindexDatasetsToLength, writeStackedDatasets } from './chartLineMutations'
+import { writeStackedDatasets } from './chartLineMutations'
 import { buildTimeSeriesChartConfig } from './timeSeriesChartConfig'
 
 // Layer: L2 流程层 — chart lifecycle: slide (live window) vs morph (metric/range).
@@ -83,6 +85,8 @@ let chartInstance: Chart<'line'> | null = null
 let lastDataKey = ''
 let lastTimestamps: string[] = []
 let lastModelsKey = ''
+/** Raw (non-cumulative) series from the last painted frame — morph bridge source. */
+let lastSeriesRaw: ModelSeries[] = []
 const pending = ref(false)
 let pendingRange = ''
 let pendingMetric = ''
@@ -190,34 +194,33 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   const shift = detectTimestampShift(prevTs, timestamps)
   const sameModels = modelsKey(series) === lastModelsKey && lastModelsKey !== ''
   const canSlide = shift > 0 && sameModels && prevLen > 0
-  const isFirstPaint = prevLen === 0 || chartInstance.data.datasets.length === 0
-  // Morph: metric (USD/token) or time-range change — stretch/shrink shape + color.
-  // Not for pure sliding-window live ticks (those keep CSS slide, no Chart.js tween).
-  const canMorph = !isFirstPaint && !canSlide && sameModels && timestamps.length > 0
+  const isFirstPaint = prevLen === 0 || chartInstance.data.datasets.length === 0 || lastSeriesRaw.length === 0
+  // Morph any non-slide update: metric switch, range switch, or model re-rank.
+  // Do NOT require sameModels — USD/token reorders Top-N; ranges change membership.
+  const canMorph = !isFirstPaint && !canSlide && timestamps.length > 0 && series.length > 0
 
   setYTickFormat(chartInstance, metric)
   resetStageTransform()
 
   if (canMorph) {
     const labels = timestamps.map((ts) => formatAxisLabel(ts, range))
-    const oldLen = (chartInstance.data.datasets[0]?.data as number[] | undefined)?.length ?? 0
-    const newLen = labels.length
-    // Same-length morph is pure y/color; different length needs reindex first.
-    if (oldLen > 0 && newLen > 0 && oldLen !== newLen) {
-      reindexDatasetsToLength(chartInstance, newLen, labels)
-    }
+    // Bridge: old raw values (by model name) → new order + new length, then morph to real data.
+    const fromSeries = bridgeSeriesForMorph(lastSeriesRaw, series, labels.length)
+    writeChartData(range, timestamps, fromSeries, false)
+    chartInstance.update('none')
     writeChartData(range, timestamps, series, true)
     // Runtime accepts custom transition names; Chart.js typings only list built-ins.
     chartInstance.update('morph' as 'none')
   } else {
     writeChartData(range, timestamps, series, sameModels && chartInstance.data.datasets.length > 0)
-    // First paint / model-set change / slide: no Chart.js tween.
+    // First paint / empty / slide: no Chart.js tween.
     chartInstance.update('none')
     if (canSlide) playSlideLeft(shift, prevLen)
   }
 
   lastTimestamps = timestamps.slice()
   lastModelsKey = modelsKey(series)
+  lastSeriesRaw = cloneSeries(series)
   lastDataKey = dataKey(timestamps, series, metric, range)
   pending.value = false
   pendingRange = range

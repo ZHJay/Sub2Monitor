@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { detectTimestampShift, buildDatasets, resampleNumbers } from './chartStackSeries'
+import {
+  detectTimestampShift,
+  buildDatasets,
+  resampleNumbers,
+  bridgeSeriesForMorph,
+} from './chartStackSeries'
 
 describe('detectTimestampShift', () => {
   it('returns 0 for identical window', () => {
@@ -52,5 +57,22 @@ describe('resampleNumbers', () => {
 
   it('fills zeros from empty source', () => {
     expect(resampleNumbers([], 4)).toEqual([0, 0, 0, 0])
+  })
+})
+
+describe('bridgeSeriesForMorph', () => {
+  it('reorders previous models onto next order and resamples length', () => {
+    const previous = [
+      { model: 'b', values: [0, 10] },
+      { model: 'a', values: [0, 4] },
+    ]
+    const next = [
+      { model: 'a', values: [1, 2, 3] },
+      { model: 'c', values: [9, 9, 9] },
+    ]
+    const bridged = bridgeSeriesForMorph(previous, next, 3)
+    expect(bridged.map((s) => s.model)).toEqual(['a', 'c'])
+    expect(bridged[0].values).toEqual([0, 2, 4])
+    expect(bridged[1].values).toEqual([0, 0, 0])
   })
 })

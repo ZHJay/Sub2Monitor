@@ -64,6 +64,11 @@ export function modelsKey(series: ModelSeries[]): string {
   return series.map((s) => s.model).join('\0')
 }
 
+/** Deep-copy raw (non-cumulative) series for the next morph bridge. */
+export function cloneSeries(series: ModelSeries[]): ModelSeries[] {
+  return series.map((s) => ({ model: s.model, values: s.values.slice() }))
+}
+
 /**
  * Resample a polyline onto `targetLen` points via linear interpolation.
  * Why: Chart.js only morphs y when index counts match; length-changing
@@ -87,6 +92,23 @@ export function resampleNumbers(values: number[], targetLen: number): number[] {
     out[i] = a + (b - a) * frac
   }
   return out
+}
+
+/**
+ * Align previous raw series onto the next model order + point count.
+ * Why: USD/token re-ranks Top models; range switches change membership.
+ * Missing models start at 0 so morph still has a continuous stack.
+ */
+export function bridgeSeriesForMorph(
+  previous: ModelSeries[],
+  next: ModelSeries[],
+  targetLen: number,
+): ModelSeries[] {
+  const prevByModel = new Map(previous.map((s) => [s.model, s.values]))
+  return next.map((s) => ({
+    model: s.model,
+    values: resampleNumbers(prevByModel.get(s.model) ?? [], targetLen),
+  }))
 }
 
 /** How many leading timestamps dropped from prev when window slid to next. -1 = not a pure slide. */
