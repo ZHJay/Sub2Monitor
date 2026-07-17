@@ -5,6 +5,9 @@ import {
   resampleNumbers,
   bridgeSeriesForMorph,
   formatYAxisTick,
+  normalizeSeriesForDisplay,
+  resampleTimestamps,
+  CHART_DISPLAY_POINTS,
 } from './chartStackSeries'
 
 describe('detectTimestampShift', () => {
@@ -89,5 +92,29 @@ describe('formatYAxisTick', () => {
     expect(formatYAxisTick(900, 'tokens')).toBe('900')
     expect(formatYAxisTick(12_500, 'tokens')).toBe('12.5K')
     expect(formatYAxisTick(2_500_000, 'tokens')).toBe('2.5M')
+  })
+})
+
+describe('normalizeSeriesForDisplay', () => {
+  it('maps any window onto fixed display length', () => {
+    const timestamps = ['a', 'b', 'c', 'd']
+    const series = [{ model: 'm', values: [0, 10, 0, 20] }]
+    const out = normalizeSeriesForDisplay(timestamps, series, 8)
+    expect(out.timestamps).toHaveLength(8)
+    expect(out.series[0].values).toHaveLength(8)
+    expect(out.series[0].values[0]).toBe(0)
+    expect(out.series[0].values[7]).toBe(20)
+  })
+
+  it('default length is CHART_DISPLAY_POINTS', () => {
+    const out = normalizeSeriesForDisplay(['t0', 't1'], [{ model: 'm', values: [1, 2] }])
+    expect(out.timestamps).toHaveLength(CHART_DISPLAY_POINTS)
+    expect(out.series[0].values).toHaveLength(CHART_DISPLAY_POINTS)
+  })
+})
+
+describe('resampleTimestamps', () => {
+  it('keeps endpoints', () => {
+    expect(resampleTimestamps(['a', 'b', 'c', 'd'], 2)).toEqual(['a', 'd'])
   })
 })

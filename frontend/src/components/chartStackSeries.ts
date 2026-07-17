@@ -25,11 +25,15 @@ const STACK_COLORS_BOTTOM_TO_TOP = [
 
 export const STACK_ID = 'models'
 export const SLIDE_MS = 480
-/** Metric morph duration (stretch-shrink + color). */
+/** Shared morph duration for metric + time-range shape/color tween. */
 export const MORPH_MS = 560
 export const MORPH_EASING = 'easeInOutCubic'
-/** Range switch: fade out → swap data → fade in (no stretched fake polyline). */
-export const CROSSFADE_MS = 160
+/**
+ * Fixed display resolution so 1h/6h/24h always share the same point count.
+ * Why: Chart.js y-morph only works cleanly when index counts match; range
+ * switches then animate without a length-bridge "fake curve" pre-paint.
+ */
+export const CHART_DISPLAY_POINTS = 48
 
 function colorForStackIndex(index: number, count: number): { fill: string; stroke: string } {
   const palette = STACK_COLORS_BOTTOM_TO_TOP
@@ -133,6 +137,39 @@ export function bridgeSeriesForMorph(
     model: s.model,
     values: resampleNumbers(prevByModel.get(s.model) ?? [], targetLen),
   }))
+}
+
+/** Pick label timestamps onto a fixed display grid (nearest source index). */
+export function resampleTimestamps(timestamps: string[], targetLen: number): string[] {
+  if (targetLen <= 0) return []
+  if (timestamps.length === 0) return new Array(targetLen).fill('')
+  if (timestamps.length === targetLen) return timestamps.slice()
+  if (targetLen === 1) return [timestamps[timestamps.length - 1] ?? '']
+  const out = new Array<string>(targetLen)
+  const last = timestamps.length - 1
+  for (let i = 0; i < targetLen; i++) {
+    const t = (i / (targetLen - 1)) * last
+    out[i] = timestamps[Math.round(t)] ?? ''
+  }
+  return out
+}
+
+/**
+ * Normalize any API window onto CHART_DISPLAY_POINTS for edge-to-edge morph.
+ * Contract: output series values are still raw (non-cumulative); buildDatasets stacks them.
+ */
+export function normalizeSeriesForDisplay(
+  timestamps: string[],
+  series: ModelSeries[],
+  targetLen: number = CHART_DISPLAY_POINTS,
+): { timestamps: string[]; series: ModelSeries[] } {
+  return {
+    timestamps: resampleTimestamps(timestamps, targetLen),
+    series: series.map((s) => ({
+      model: s.model,
+      values: resampleNumbers(s.values, targetLen),
+    })),
+  }
 }
 
 /** How many leading timestamps dropped from prev when window slid to next. -1 = not a pure slide. */
