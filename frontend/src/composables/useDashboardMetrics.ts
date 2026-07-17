@@ -6,6 +6,7 @@ import {
   getDailyHeatmap,
   getIntradayHeatmap,
   PERSONAL_USER_EMAIL,
+  SCOPE_USER_EMAILS,
   type MetricsSummaryResponse,
   type TimeSeriesModelSeries,
   type ModelStats,
@@ -63,7 +64,7 @@ export function useDashboardMetrics() {
   })
 
   const scopeLabel = computed(() =>
-    userScope.value === 'personal' ? PERSONAL_USER_EMAIL : '全部用户'
+    userScope.value === 'all' ? '全部用户' : userScope.value
   )
 
   async function loadTimeSeries() {
@@ -175,7 +176,7 @@ export function useDashboardMetrics() {
     loading, error, lastUpdateText, summary,
     timeSeriesTimestamps, timeSeriesSeries, modelStats,
     heatmapPoints, heatmapDays, heatmapError, timeRange, metric, successRate,
-    includeCache, userScope, scopeLabel, PERSONAL_USER_EMAIL,
+    includeCache, userScope, scopeLabel, PERSONAL_USER_EMAIL, SCOPE_USER_EMAILS,
     selectedDate, intradayPoints, intradayLoading, intradayError,
     refreshData, loadTimeSeries, setIncludeCache, setUserScope,
     selectDate, closeIntraday

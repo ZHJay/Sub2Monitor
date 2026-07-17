@@ -23,7 +23,8 @@ func NewAPIHandler(db *gorm.DB, ssoFlow *l2_flows.SSOFlow) *APIHandler {
 }
 
 // parseMetricsFilter reads include_cache + user_scope/user_email query params.
-// Contract: include_cache defaults true; user_scope=personal maps to PersonalMonitorEmail.
+// Contract: include_cache defaults true; personal → PersonalMonitorEmail;
+// user_email only accepted when in AllowedScopeEmails.
 func parseMetricsFilter(c *gin.Context) l0_axioms.MetricsFilter {
 	includeCache := true
 	if raw := c.Query("include_cache"); raw != "" {
@@ -38,12 +39,8 @@ func parseMetricsFilter(c *gin.Context) l0_axioms.MetricsFilter {
 	case "all":
 		email = ""
 	default:
-		// Only the fixed personal account is allowed as a single-user scope.
-		if !strings.EqualFold(email, l0_axioms.PersonalMonitorEmail) {
-			email = ""
-		} else {
-			email = l0_axioms.PersonalMonitorEmail
-		}
+		// Fixed allowlist only — never open-scan arbitrary emails.
+		email = l0_axioms.NormalizeScopeEmail(email)
 	}
 
 	return l0_axioms.MetricsFilter{IncludeCache: includeCache, UserEmail: email}

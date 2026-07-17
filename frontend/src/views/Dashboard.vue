@@ -41,7 +41,7 @@
             >不含 cache</button>
           </div>
           <div class="h-5 w-px bg-apple-line"></div>
-          <div class="flex items-center gap-1">
+          <div class="flex flex-wrap items-center gap-1">
             <span class="mr-1 text-[11px] uppercase tracking-[0.06em] text-apple-muted">Scope</span>
             <button
               type="button"
@@ -49,10 +49,12 @@
               :class="pillClass(userScope === 'all')"
             >全部用户</button>
             <button
+              v-for="email in SCOPE_USER_EMAILS"
+              :key="email"
               type="button"
-              @click="setUserScope('personal')"
-              :class="pillClass(userScope === 'personal')"
-            >{{ PERSONAL_USER_EMAIL }}</button>
+              @click="setUserScope(email)"
+              :class="pillClass(userScope === email)"
+            >{{ email }}</button>
           </div>
         </div>
       </section>
@@ -144,7 +146,7 @@ const {
   loading, error, lastUpdateText, summary,
   timeSeriesTimestamps, timeSeriesSeries, modelStats,
   heatmapPoints, heatmapDays, heatmapError, timeRange, metric, successRate,
-  includeCache, userScope, scopeLabel, PERSONAL_USER_EMAIL,
+  includeCache, userScope, scopeLabel, SCOPE_USER_EMAILS,
   selectedDate, intradayPoints, intradayLoading, intradayError,
   refreshData, loadTimeSeries, setIncludeCache, setUserScope,
   selectDate, closeIntraday

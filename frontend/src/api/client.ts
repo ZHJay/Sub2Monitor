@@ -16,7 +16,13 @@ apiClient.interceptors.response.use(
 )
 
 export const PERSONAL_USER_EMAIL = 'zhanghjay.ng@gmail.com'
-export type UserScope = 'all' | 'personal'
+/** Fixed scope picker emails — must stay in sync with backend AllowedScopeEmails. */
+export const SCOPE_USER_EMAILS = [
+  'zhanghjay.ng@gmail.com',
+  'sblxx@sb.sb',
+] as const
+export type ScopeUserEmail = (typeof SCOPE_USER_EMAILS)[number]
+export type UserScope = 'all' | ScopeUserEmail
 export interface MetricsQuery { includeCache?: boolean; userScope?: UserScope }
 
 export interface MetricsSummaryResponse {
@@ -62,10 +68,16 @@ export interface IntradayHeatmapResponse {
 }
 
 function metricsParams(query: MetricsQuery = {}) {
-  return {
-    include_cache: query.includeCache === false ? 'false' : 'true',
-    user_scope: query.userScope === 'personal' ? 'personal' : 'all',
+  const include_cache = query.includeCache === false ? 'false' : 'true'
+  const scope = query.userScope
+  if (!scope || scope === 'all') {
+    return { include_cache, user_scope: 'all' }
   }
+  // Legacy personal alias still hits user_scope=personal for the primary operator.
+  if (scope === PERSONAL_USER_EMAIL) {
+    return { include_cache, user_scope: 'personal' }
+  }
+  return { include_cache, user_scope: 'user', user_email: scope }
 }
 
 export async function createSSOChallenge(): Promise<string> {
