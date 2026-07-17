@@ -1,5 +1,5 @@
 <template>
-  <div class="rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-glass backdrop-blur-xl transition-colors hover:border-white/15">
+  <div class="rounded-2xl border border-apple-line bg-apple-surface p-5 shadow-glass backdrop-blur-xl transition-colors hover:border-apple-line-strong">
     <div class="text-[11px] uppercase tracking-[0.06em] text-apple-muted">{{ title }}</div>
     <div class="mt-2 text-[28px] font-semibold tracking-tight text-apple-text">
       {{ formattedValue }}

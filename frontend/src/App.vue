@@ -1,20 +1,23 @@
 <template>
   <div id="app" class="font-apple">
     <div v-if="status !== 'authenticated'" class="flex min-h-screen items-center justify-center px-4">
-      <div class="w-full max-w-md rounded-2xl border border-white/10 bg-white/[0.04] p-8 shadow-glass backdrop-blur-xl">
-        <h1 class="text-3xl font-semibold tracking-tight text-apple-text">Sub2Monitor</h1>
+      <div class="w-full max-w-md rounded-2xl border border-apple-line bg-apple-surface p-8 shadow-glass backdrop-blur-xl">
+        <div class="mb-6 flex items-start justify-between gap-3">
+          <h1 class="text-3xl font-semibold tracking-tight text-apple-text">Sub2Monitor</h1>
+          <ThemeSwitcher />
+        </div>
         <p v-if="status === 'checking'" class="mt-3 text-apple-muted">正在验证 Sub2API 管理员身份…</p>
         <template v-else>
           <p class="mt-3 mb-6 text-apple-muted">{{ message }}</p>
           <a
             href="https://api4kimi8.org/login"
-            class="block w-full rounded-full bg-apple-green px-4 py-2.5 text-center text-sm font-semibold text-[#003312] transition-opacity hover:opacity-90"
+            class="block w-full rounded-full bg-apple-green px-4 py-2.5 text-center text-sm font-semibold text-apple-green-ink transition-opacity hover:opacity-90"
           >
             前往 Sub2API 登录
           </a>
           <button
             @click="startAuthentication"
-            class="mt-3 w-full rounded-full border border-white/15 px-4 py-2.5 text-sm text-apple-text transition-colors hover:bg-white/5"
+            class="mt-3 w-full rounded-full border border-apple-line-strong px-4 py-2.5 text-sm text-apple-text transition-colors hover:bg-apple-surface-strong"
           >
             重试
           </button>
@@ -28,8 +31,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Dashboard from './views/Dashboard.vue'
+import ThemeSwitcher from './components/ThemeSwitcher.vue'
 import { createSSOChallenge, getSSOSession } from './api/client'
 import { startTopLevelSSO } from './auth/sub2apiSsoBridge'
+import { useTheme } from './composables/useTheme'
+
+// Keep theme media listener alive on the auth gate as well.
+useTheme()
 
 type AuthenticationStatus = 'checking' | 'anonymous' | 'unavailable' | 'authenticated'
 const status = ref<AuthenticationStatus>('checking')

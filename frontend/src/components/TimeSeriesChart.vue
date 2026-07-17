@@ -1,5 +1,5 @@
 <template>
-  <div class="rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-glass backdrop-blur-xl">
+  <div class="rounded-2xl border border-apple-line bg-apple-surface p-5 shadow-glass backdrop-blur-xl">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <h2 class="text-[11px] uppercase tracking-[0.06em] text-apple-muted">Usage by model</h2>
       <div class="flex flex-wrap gap-2">
@@ -31,14 +31,14 @@
         v-if="pending"
         class="pointer-events-none absolute inset-0 z-10 flex items-start justify-end p-2"
       >
-        <span class="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] text-apple-muted backdrop-blur-sm">
+        <span class="rounded-full border border-apple-line bg-apple-overlay px-2 py-1 text-[10px] text-apple-muted backdrop-blur-sm">
           updating…
         </span>
       </div>
     </div>
 
     <ul v-if="legendItems.length" class="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5">
-      <li v-for="item in legendItems" :key="item.label" class="flex items-center gap-1.5 text-[11px] text-[#d1d1d6]">
+      <li v-for="item in legendItems" :key="item.label" class="flex items-center gap-1.5 text-[11px] text-apple-row">
         <span class="h-2.5 w-2.5 rounded-full" :style="{ background: item.color }"></span>
         <span class="max-w-[12rem] truncate">{{ item.label }}</span>
       </li>
@@ -68,7 +68,8 @@ import {
   normalizeSeriesForDisplay,
 } from './chartStackSeries'
 import { writeStackedDatasets } from './chartLineMutations'
-import { buildTimeSeriesChartConfig } from './timeSeriesChartConfig'
+import { applyChartChromeColors, buildTimeSeriesChartConfig } from './timeSeriesChartConfig'
+import { useTheme } from '../composables/useTheme'
 
 // Layer: L2 流程层 — slide (live window) + fixed-resolution morph (metric & range).
 
@@ -82,6 +83,7 @@ const props = defineProps<{
 }>()
 defineEmits<{ 'update:timeRange': [value: string]; 'update:metric': [value: string] }>()
 
+const { resolvedTheme } = useTheme()
 const chartCanvas = ref<HTMLCanvasElement | null>(null)
 const chartStage = ref<HTMLDivElement | null>(null)
 let chartInstance: Chart<'line'> | null = null
@@ -112,8 +114,8 @@ const metrics = [
 
 function pillClass(active: boolean): string {
   return active
-    ? 'rounded-full bg-apple-green px-3 py-1.5 text-xs font-medium text-[#003312]'
-    : 'rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-apple-muted hover:text-apple-text'
+    ? 'rounded-full bg-apple-green px-3 py-1.5 text-xs font-medium text-apple-green-ink'
+    : 'rounded-full border border-apple-line bg-apple-surface-strong px-3 py-1.5 text-xs font-medium text-apple-muted hover:text-apple-text'
 }
 
 function syncLegend(datasets: StackedLineDataset[]) {
@@ -269,6 +271,11 @@ function onDataChange() {
 
 watch(() => [props.metric, props.timeRange] as const, () => onControlChange())
 watch(() => [props.timestamps, props.series] as const, () => nextTick(() => onDataChange()), { deep: true })
+watch(resolvedTheme, () => {
+  if (!chartInstance) return
+  applyChartChromeColors(chartInstance)
+  chartInstance.update('none')
+})
 
 onMounted(() => nextTick(() => {
   createChart()

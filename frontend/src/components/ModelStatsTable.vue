@@ -1,10 +1,10 @@
 <template>
-  <div class="rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-glass backdrop-blur-xl">
+  <div class="rounded-2xl border border-apple-line bg-apple-surface p-5 shadow-glass backdrop-blur-xl">
     <h2 class="mb-4 text-[11px] uppercase tracking-[0.06em] text-apple-muted">By Model</h2>
     <div class="overflow-x-auto">
       <table class="min-w-full">
         <thead>
-          <tr class="border-b border-white/10 text-left text-[11px] uppercase tracking-[0.05em] text-apple-muted">
+          <tr class="border-b border-apple-line text-left text-[11px] uppercase tracking-[0.05em] text-apple-muted">
             <th class="px-3 py-3 font-medium">Model</th>
             <th class="px-3 py-3 font-medium">Cost</th>
             <th class="px-3 py-3 font-medium">Tokens</th>
@@ -15,7 +15,7 @@
           <tr
             v-for="stat in sortedStats"
             :key="stat.model"
-            class="border-b border-white/5 text-sm text-[#d1d1d6] transition-colors hover:bg-white/[0.03]"
+            class="border-b border-apple-line text-sm text-apple-row transition-colors hover:bg-apple-surface-strong"
           >
             <td class="px-3 py-3 font-medium text-apple-text">{{ stat.model }}</td>
             <td class="px-3 py-3">${{ stat.cost.toFixed(2) }}</td>

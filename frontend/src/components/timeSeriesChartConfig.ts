@@ -9,6 +9,7 @@ import {
   Y_AXIS_WIDTH_PX,
   formatMetricValue,
 } from './chartStackSeries'
+import { type ChartChromeColors, readChartChromeColors } from '../theme/themeTokens'
 
 // Layer: L1 积木层
 // Boundary: Chart.js option factory only; no Vue / DOM / instance lifecycle.
@@ -20,6 +21,7 @@ import {
  */
 export function buildTimeSeriesChartConfig(
   getMetric: () => string,
+  chrome: ChartChromeColors = readChartChromeColors(),
 ): ChartConfiguration<'line'> {
   return {
     type: 'line',
@@ -70,11 +72,11 @@ export function buildTimeSeriesChartConfig(
         tooltip: {
           mode: 'index',
           intersect: false,
-          backgroundColor: 'rgba(28,28,30,0.96)',
-          titleColor: '#f5f5f7',
-          bodyColor: '#d1d1d6',
-          footerColor: '#f5f5f7',
-          borderColor: 'rgba(255,255,255,0.1)',
+          backgroundColor: chrome.tooltipBg,
+          titleColor: chrome.titleColor,
+          bodyColor: chrome.bodyColor,
+          footerColor: chrome.titleColor,
+          borderColor: chrome.borderColor,
           borderWidth: 1,
           itemSort(a, b) {
             return (a.datasetIndex ?? 0) - (b.datasetIndex ?? 0)
@@ -102,15 +104,15 @@ export function buildTimeSeriesChartConfig(
           offset: false,
           bounds: 'ticks',
           grid: { display: false, offset: false },
-          ticks: { color: '#86868B', maxRotation: 0, autoSkip: true, maxTicksLimit: 8, align: 'inner' },
-          border: { color: 'rgba(255,255,255,0.12)' },
+          ticks: { color: chrome.tickColor, maxRotation: 0, autoSkip: true, maxTicksLimit: 8, align: 'inner' },
+          border: { color: chrome.axisBorder },
         },
         y: {
           stacked: false,
           beginAtZero: true,
-          grid: { color: 'rgba(255,255,255,0.08)' },
-          ticks: { color: '#86868B' },
-          border: { color: 'rgba(255,255,255,0.12)' },
+          grid: { color: chrome.gridColor },
+          ticks: { color: chrome.tickColor },
+          border: { color: chrome.axisBorder },
           // Lock slot width: USD `$0.12` vs Tokens `12.3M` must not resize plot/time axis.
           afterFit(axis) {
             axis.width = Y_AXIS_WIDTH_PX
@@ -119,4 +121,28 @@ export function buildTimeSeriesChartConfig(
       },
     },
   }
+}
+
+/** Apply live theme chrome to an existing Chart.js instance without rebuild. */
+export function applyChartChromeColors(
+  chart: { options: ChartConfiguration<'line'>['options'] },
+  chrome: ChartChromeColors = readChartChromeColors(),
+): void {
+  const opts = chart.options
+  if (!opts) return
+  const tooltip = opts.plugins?.tooltip
+  if (tooltip) {
+    tooltip.backgroundColor = chrome.tooltipBg
+    tooltip.titleColor = chrome.titleColor
+    tooltip.bodyColor = chrome.bodyColor
+    tooltip.footerColor = chrome.titleColor
+    tooltip.borderColor = chrome.borderColor
+  }
+  const x = opts.scales?.x
+  const y = opts.scales?.y
+  if (x && 'ticks' in x && x.ticks) x.ticks.color = chrome.tickColor
+  if (x && 'border' in x && x.border) x.border.color = chrome.axisBorder
+  if (y && 'ticks' in y && y.ticks) y.ticks.color = chrome.tickColor
+  if (y && 'grid' in y && y.grid) y.grid.color = chrome.gridColor
+  if (y && 'border' in y && y.border) y.border.color = chrome.axisBorder
 }

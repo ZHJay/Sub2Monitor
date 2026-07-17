@@ -1,5 +1,5 @@
 <template>
-  <div class="rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-glass backdrop-blur-xl">
+  <div class="rounded-2xl border border-apple-line bg-apple-surface p-5 shadow-glass backdrop-blur-xl">
     <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
         <div class="text-[15px] font-semibold tracking-tight text-apple-text">Token activity</div>
@@ -50,7 +50,7 @@
     <Teleport to="body">
       <div
         v-if="hover && !hover.placeholder"
-        class="pointer-events-none fixed z-[9999] -translate-x-1/2 -translate-y-full rounded-lg border border-white/10 bg-[#1c1c1e]/95 px-2.5 py-1.5 text-[11px] text-apple-text shadow-xl backdrop-blur-md"
+        class="pointer-events-none fixed z-[9999] -translate-x-1/2 -translate-y-full rounded-lg border border-apple-line bg-apple-tooltip px-2.5 py-1.5 text-[11px] text-apple-text shadow-xl backdrop-blur-md"
         :style="{ left: `${tooltipPos.x}px`, top: `${tooltipPos.y}px` }"
       >
         <span class="font-semibold">{{ formatTokens(hover.tokens) }} tokens</span>
