@@ -105,3 +105,54 @@ body {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* Mechanical digit reel window chrome (shared by DigitReel). */
+.digit-reel {
+  position: relative;
+  display: inline-block;
+  height: 1em;
+  width: 1ch;
+  overflow: hidden;
+  vertical-align: -0.12em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  border-radius: 0.12em;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--apple-text-solid) 10%, transparent) 0%,
+      transparent 28%,
+      transparent 72%,
+      color-mix(in srgb, var(--apple-text-solid) 10%, transparent) 100%
+    ),
+    color-mix(in srgb, var(--apple-elevated) 55%, transparent);
+  box-shadow:
+    inset 0 0.08em 0.14em rgba(0, 0, 0, 0.35),
+    inset 0 -0.06em 0.1em rgba(0, 0, 0, 0.2),
+    inset 0 0 0 1px color-mix(in srgb, var(--apple-text-solid) 8%, transparent);
+}
+.digit-reel::before,
+.digit-reel::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  pointer-events: none;
+  height: 34%;
+}
+.digit-reel::before {
+  top: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--apple-bg) 72%, transparent), transparent);
+}
+.digit-reel::after {
+  bottom: 0;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--apple-bg) 72%, transparent), transparent);
+}
+.digit-reel--tick { animation: reel-tick 100ms ease-out; }
+@keyframes reel-tick {
+  0% { transform: translateY(0); }
+  40% { transform: translateY(0.015em); }
+  100% { transform: translateY(0); }
+}

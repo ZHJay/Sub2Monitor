@@ -1,43 +1,48 @@
 <template>
   <span class="rolling-number" :aria-label="display">
-    <template v-for="(token, i) in tokens" :key="`${playId}-${i}-${tokenKey(token)}`">
+    <template v-for="slot in slots" :key="slot.key">
       <DigitReel
-        v-if="token.kind === 'digit'"
-        :digit="token.digit"
-        :from-right="token.fromRight"
+        v-if="slot.kind === 'digit'"
+        :digit="slot.digit"
+        :from-digit="slot.fromDigit"
+        :from-right="slot.fromRight"
+        :mode="slot.mode"
+        :steps="slot.steps"
+        :play-id="slot.playId"
         :reduced-motion="reducedMotion"
-        :play-id="playId"
       />
       <span
         v-else
         class="rolling-number__static"
         aria-hidden="true"
-      >{{ token.char }}</span>
+      >{{ slot.char }}</span>
     </template>
   </span>
 </template>
 
 <script setup lang="ts">
 // Layer: L1 积木层
-// Contract: 接收最终展示串；数值变化时重播机械滚轮，真实数据不被随机改写。
-// Boundary: 非数字字符静止；prefers-reduced-motion 直接定格。
+// Contract: 首次完整机械揭晓；之后只对变化数字位做短距 partial。
+// Invariant: 生命周期内首次 full 只一次，除非 force replay / 卸载重挂。
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DigitReel from './DigitReel.vue'
-import { tokenizeDisplay, type ReelToken } from '../utils/digitReelMath'
+import { diffReelSlots, type ReelSlot } from '../utils/digitReelDiff'
 
 const props = withDefaults(defineProps<{
-  /** 已格式化的最终展示文本，如 `$12.34`、`1.2M`、`98.5%`、`12/34`。 */
   value: string | number
-  /** 每次数据刷新递增；值未变也会强制重播滚轮。 */
+  /** 递增时强制完整重播（可选）；普通刷新勿传。 */
   playKey?: number
 }>(), {
   playKey: 0,
 })
 
 const display = computed(() => String(props.value ?? ''))
-const tokens = computed(() => tokenizeDisplay(display.value))
-const playId = ref(0)
 const reducedMotion = ref(false)
+const hasRevealed = ref(false)
+const previous = ref('')
+const playIds = ref<Map<string, number>>(new Map())
+const slots = ref<ReelSlot[]>([])
+const lastPlayKey = ref(props.playKey)
 
 let media: MediaQueryList | null = null
 
@@ -45,22 +50,27 @@ function onMotionChange() {
   reducedMotion.value = Boolean(media?.matches)
 }
 
-function tokenKey(token: ReelToken): string {
-  return token.kind === 'digit'
-    ? `d${token.digit}-${token.fromRight}`
-    : `s${token.char}`
-}
-
-function bumpPlay() {
-  playId.value += 1
+function apply(next: string, forceFull: boolean) {
+  const result = diffReelSlots({
+    previous: previous.value,
+    next,
+    hasRevealed: hasRevealed.value,
+    forceFull,
+    reducedMotion: reducedMotion.value,
+    playIds: playIds.value,
+  })
+  slots.value = result.slots
+  playIds.value = result.playIds
+  hasRevealed.value = result.hasRevealed
+  previous.value = next
 }
 
 onMounted(() => {
   media = window.matchMedia('(prefers-reduced-motion: reduce)')
   onMotionChange()
   media.addEventListener?.('change', onMotionChange)
-  // 兼容旧 WebKit
   media.addListener?.(onMotionChange)
+  apply(display.value, true)
 })
 
 onBeforeUnmount(() => {
@@ -68,12 +78,26 @@ onBeforeUnmount(() => {
   media?.removeListener?.(onMotionChange)
 })
 
-// 展示串变化或外部 refresh key 变化 → 重播。
-watch([display, () => props.playKey], bumpPlay)
+watch(display, (next) => {
+  if (next === previous.value) return
+  apply(next, false)
+})
 
-/** 供父级在「值未变但已重新拉取」时强制揭晓动画。 */
+watch(() => props.playKey, (key) => {
+  if (key === lastPlayKey.value) return
+  lastPlayKey.value = key
+  // 外部显式 replay：完整动画一次
+  hasRevealed.value = false
+  apply(display.value, true)
+})
+
+watch(reducedMotion, () => {
+  apply(display.value, false)
+})
+
 function replay() {
-  bumpPlay()
+  hasRevealed.value = false
+  apply(display.value, true)
 }
 
 defineExpose({ replay })
@@ -90,7 +114,6 @@ defineExpose({ replay })
   letter-spacing: 0.04em;
   line-height: 1;
 }
-
 .rolling-number__static {
   display: inline-block;
   line-height: 1;

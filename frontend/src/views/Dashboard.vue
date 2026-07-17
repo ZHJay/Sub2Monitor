@@ -70,16 +70,12 @@
         <section class="rounded-2xl border border-apple-line bg-apple-surface p-6 shadow-glass backdrop-blur-xl">
           <div class="text-[11px] uppercase tracking-[0.06em] text-apple-muted">Total Cost · 累计成本</div>
           <div class="mt-2 text-5xl font-semibold tracking-tight">
-            <RollingNumber
-              :value="`$${summary.totalCost.toFixed(2)}`"
-              :play-key="metricsRevealKey"
-            />
+            <RollingNumber :value="`$${summary.totalCost.toFixed(2)}`" />
           </div>
           <div class="mt-2 text-sm text-apple-muted">
             <RollingNumber
               class="align-baseline"
               :value="formatTokens(summary.totalTokens)"
-              :play-key="metricsRevealKey"
             />
             tokens
             · {{ includeCache ? '含 cache' : '不含 cache' }}
@@ -88,15 +84,14 @@
             <RollingNumber
               class="align-baseline"
               :value="successRate"
-              :play-key="metricsRevealKey"
             />%
           </div>
           <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <MetricCard title="Hourly Rate" :value="summary.hourlyCost" unit="/hr" :reveal-key="metricsRevealKey" />
-            <MetricCard title="Total Tokens" :value="summary.totalTokens" :reveal-key="metricsRevealKey" />
-            <MetricCard title="Requests" :value="`${summary.requests.success}/${summary.requests.total}`" :reveal-key="metricsRevealKey" />
-            <MetricCard title="Success Rate" :value="successRate" unit="%" :reveal-key="metricsRevealKey" />
-            <MetricCard title="Models" :value="modelStats.length" :reveal-key="metricsRevealKey" />
+            <MetricCard title="Hourly Rate" :value="summary.hourlyCost" unit="/hr" />
+            <MetricCard title="Total Tokens" :value="summary.totalTokens" />
+            <MetricCard title="Requests" :value="`${summary.requests.success}/${summary.requests.total}`" />
+            <MetricCard title="Success Rate" :value="successRate" unit="%" />
+            <MetricCard title="Models" :value="modelStats.length" />
           </div>
         </section>
 
@@ -146,7 +141,7 @@ import { useTheme } from '../composables/useTheme'
 useTheme()
 
 const {
-  loading, error, lastUpdateText, summary, metricsRevealKey,
+  loading, error, lastUpdateText, summary,
   timeSeriesTimestamps, timeSeriesSeries, modelStats,
   heatmapPoints, heatmapDays, heatmapError, timeRange, metric, successRate,
   includeCache, userScope, scopeLabel, PERSONAL_USER_EMAIL,

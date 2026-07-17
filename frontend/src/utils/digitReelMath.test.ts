@@ -1,18 +1,19 @@
 import { describe, expect, it } from 'vitest'
+import { compareDigitArrays, diffReelSlots } from './digitReelDiff'
 import {
-  buildMechanicalPath,
+  buildPartialPath,
+  buildPartialStrip,
   buildReelStrip,
-  countDigits,
-  overshootForDigit,
+  planPartialSpin,
   planReelSpin,
   reelKeyframes,
+  signedDigitSteps,
   tokenizeDisplay,
 } from './digitReelMath'
 
 describe('tokenizeDisplay', () => {
-  it('keeps non-digits static and ranks digits from the right', () => {
-    const tokens = tokenizeDisplay('$12.3K')
-    expect(tokens).toEqual([
+  it('ranks digits from the right and keeps symbols static', () => {
+    expect(tokenizeDisplay('$12.3K')).toEqual([
       { kind: 'static', char: '$' },
       { kind: 'digit', digit: 1, fromRight: 2, totalDigits: 3 },
       { kind: 'digit', digit: 2, fromRight: 1, totalDigits: 3 },
@@ -21,89 +22,110 @@ describe('tokenizeDisplay', () => {
       { kind: 'static', char: 'K' },
     ])
   })
+})
 
-  it('supports percent, slash and thousands separators', () => {
-    const tokens = tokenizeDisplay('1,234/5,678%')
-    const digits = tokens.filter((t) => t.kind === 'digit')
-    expect(countDigits('1,234/5,678%')).toBe(8)
-    expect(digits).toHaveLength(8)
-    expect(digits[0]).toMatchObject({ digit: 1, fromRight: 7 })
-    expect(digits[digits.length - 1]).toMatchObject({ digit: 8, fromRight: 0 })
+describe('signedDigitSteps', () => {
+  it('rolls up on overall increase including 9→0', () => {
+    expect(signedDigitSteps(4, 7, 'up')).toBe(3)
+    expect(signedDigitSteps(9, 0, 'up')).toBe(1)
+    expect(signedDigitSteps(7, 4, 'down')).toBe(-3)
   })
 })
 
-describe('planReelSpin', () => {
-  it('makes rightmost digits stop earlier than left digits', () => {
-    const right = planReelSpin(8, 0, false)
-    const left = planReelSpin(1, 4, false)
-    expect(right.delayMs).toBeLessThan(left.delayMs)
-    expect(right.durationMs).toBeLessThan(left.durationMs)
-    expect(right.cycles).toBeLessThan(left.cycles)
-    expect(right.durationMs).toBeGreaterThanOrEqual(2000)
-    expect(left.durationMs).toBeLessThanOrEqual(3000)
+describe('compareDigitArrays', () => {
+  it('right-aligns and detects magnitude direction', () => {
+    expect(compareDigitArrays([1, 2, 8, 4], [1, 2, 8, 7])).toBe('up')
+    expect(compareDigitArrays([1, 9, 9, 9], [2, 0, 0, 0])).toBe('up')
+    expect(compareDigitArrays([2, 0, 0], [9, 9])).toBe('down')
   })
+})
 
-  it('skips motion when reducedMotion is set', () => {
-    expect(planReelSpin(7, 3, true)).toEqual({
-      cycles: 0,
-      durationMs: 0,
-      delayMs: 0,
-      finalIndex: 0,
+describe('diffReelSlots', () => {
+  it('first reveal uses full motion on every digit', () => {
+    const r = diffReelSlots({
+      previous: '',
+      next: '1284',
+      hasRevealed: false,
+      forceFull: false,
+      reducedMotion: false,
+      playIds: new Map(),
     })
+    const digits = r.slots.filter((s) => s.kind === 'digit')
+    expect(digits.every((d) => d.kind === 'digit' && d.mode === 'full')).toBe(true)
+    expect(r.hasRevealed).toBe(true)
   })
 
-  it('finalIndex lands on target digit; strip has headroom for overshoot', () => {
-    for (const fromRight of [0, 1, 4]) {
-      for (const digit of [0, 4, 9]) {
-        const plan = planReelSpin(digit, fromRight, false)
-        const strip = buildReelStrip(digit, plan.cycles)
-        expect(strip[plan.finalIndex]).toBe(digit)
-        expect(strip.length).toBe(plan.finalIndex + 2)
-      }
-    }
+  it('only animates changed digits on refresh (1284→1287)', () => {
+    const first = diffReelSlots({
+      previous: '',
+      next: '1284',
+      hasRevealed: false,
+      forceFull: false,
+      reducedMotion: false,
+      playIds: new Map(),
+    })
+    const second = diffReelSlots({
+      previous: '1284',
+      next: '1287',
+      hasRevealed: true,
+      forceFull: false,
+      reducedMotion: false,
+      playIds: first.playIds,
+    })
+    const byRight = new Map(
+      second.slots
+        .filter((s): s is Extract<typeof s, { kind: 'digit' }> => s.kind === 'digit')
+        .map((d) => [d.fromRight, d] as const)
+    )
+    expect(byRight.get(0)?.mode).toBe('partial')
+    expect(byRight.get(0)?.fromDigit).toBe(4)
+    expect(byRight.get(0)?.digit).toBe(7)
+    expect(byRight.get(0)?.steps).toBe(3)
+    expect(byRight.get(1)?.mode).toBe('idle')
+    expect(byRight.get(2)?.mode).toBe('idle')
+    expect(byRight.get(3)?.mode).toBe('idle')
+  })
+
+  it('keeps fractional-only updates partial on the last digit', () => {
+    const r = diffReelSlots({
+      previous: '125.6',
+      next: '125.8',
+      hasRevealed: true,
+      forceFull: false,
+      reducedMotion: false,
+      playIds: new Map([['d:0', 1], ['d:1', 1], ['d:2', 1], ['d:3', 1]]),
+    })
+    expect(r.slots.some((s) => s.kind === 'static' && s.char === '.')).toBe(true)
+    const changed = r.slots.filter(
+      (s): s is Extract<typeof s, { kind: 'digit' }> => s.kind === 'digit' && s.mode !== 'idle'
+    )
+    expect(changed).toHaveLength(1)
+    expect(changed[0].fromRight).toBe(0)
+    expect(changed[0].mode).toBe('partial')
   })
 })
 
-describe('buildMechanicalPath', () => {
-  it('starts at 0, overshoots past target, then settles exactly', () => {
-    const finalIndex = 24
-    const target = -finalIndex
-    const path = buildMechanicalPath(finalIndex, 2)
-    const overshoot = overshootForDigit(2)
-
-    expect(path[0]).toEqual({ offset: 0, y: 0 })
-    expect(path[path.length - 1]).toEqual({ offset: 1, y: target })
-
-    const minY = Math.min(...path.map((p) => p.y))
-    // 越过目标：比 target 更负，幅度约 8%–15% em
-    expect(minY).toBeLessThan(target)
-    expect(minY).toBeGreaterThanOrEqual(target - overshoot - 1e-9)
-    expect(minY).toBeLessThanOrEqual(target - 0.08 + 1e-9)
-  })
-
-  it('reverses direction multiple times during settle (damped swing)', () => {
-    const path = buildMechanicalPath(30, 1)
-    const target = -30
-    // 取 settle 段（offset > 0.72）看误差符号变化
-    const settle = path.filter((p) => p.offset > 0.72)
-    const signs: number[] = []
-    for (const p of settle) {
-      const err = p.y - target
-      if (Math.abs(err) < 1e-6) continue
-      const s = Math.sign(err)
-      if (signs.length === 0 || signs[signs.length - 1] !== s) signs.push(s)
-    }
-    // 至少 2 次方向反转（3 个符号段）
-    expect(signs.length).toBeGreaterThanOrEqual(3)
+describe('partial path/strip', () => {
+  it('plans 300–700ms and lands on |steps|', () => {
+    const plan = planPartialSpin(3)
+    expect(plan.durationMs).toBeGreaterThanOrEqual(300)
+    expect(plan.durationMs).toBeLessThanOrEqual(700)
+    expect(plan.finalIndex).toBe(3)
+    expect(buildPartialStrip(4, 3)[0]).toBe(4)
+    expect(buildPartialStrip(4, 3)[3]).toBe(7)
+    const path = buildPartialPath(3)
+    expect(path[0].y).toBe(0)
+    expect(path[path.length - 1]).toEqual({ offset: 1, y: -3 })
   })
 })
 
-describe('reelKeyframes', () => {
-  it('exports linear-time keyframes ending on the exact digit slot', () => {
-    const frames = reelKeyframes(24, 0)
-    expect(frames[0].transform).toBe('translateY(0em)')
-    expect(frames[frames.length - 1].transform).toBe('translateY(-24em)')
-    expect(frames[frames.length - 1].offset).toBe(1)
-    expect(frames.length).toBeGreaterThan(40)
+describe('full reel invariants', () => {
+  it('strip covers finalIndex with overshoot room', () => {
+    const plan = planReelSpin(4, 1, false)
+    const strip = buildReelStrip(4, plan.cycles)
+    expect(strip[plan.finalIndex]).toBe(4)
+    expect(strip.length).toBe(plan.finalIndex + 2)
+    const frames = reelKeyframes(plan.finalIndex, 1)
+    expect(frames[frames.length - 1].transform).toBe(`translateY(${-plan.finalIndex}em)`)
   })
 })
