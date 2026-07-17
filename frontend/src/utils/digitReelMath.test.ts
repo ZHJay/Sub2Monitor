@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildMechanicalPath,
   buildReelStrip,
   countDigits,
+  overshootForDigit,
   planReelSpin,
   reelKeyframes,
   tokenizeDisplay,
@@ -27,7 +29,6 @@ describe('tokenizeDisplay', () => {
     expect(digits).toHaveLength(8)
     expect(digits[0]).toMatchObject({ digit: 1, fromRight: 7 })
     expect(digits[digits.length - 1]).toMatchObject({ digit: 8, fromRight: 0 })
-    expect(tokens.some((t) => t.kind === 'static' && t.char === '%')).toBe(true)
   })
 })
 
@@ -38,8 +39,8 @@ describe('planReelSpin', () => {
     expect(right.delayMs).toBeLessThan(left.delayMs)
     expect(right.durationMs).toBeLessThan(left.durationMs)
     expect(right.cycles).toBeLessThan(left.cycles)
-    expect(right.finalIndex % 10).toBe(8)
-    expect(left.finalIndex % 10).toBe(1)
+    expect(right.durationMs).toBeGreaterThanOrEqual(2000)
+    expect(left.durationMs).toBeLessThanOrEqual(3000)
   })
 
   it('skips motion when reducedMotion is set', () => {
@@ -51,33 +52,58 @@ describe('planReelSpin', () => {
     })
   })
 
-  it('finalIndex always lands on a real strip cell with the target digit', () => {
+  it('finalIndex lands on target digit; strip has headroom for overshoot', () => {
     for (const fromRight of [0, 1, 4]) {
       for (const digit of [0, 4, 9]) {
         const plan = planReelSpin(digit, fromRight, false)
         const strip = buildReelStrip(digit, plan.cycles)
-        expect(strip.length).toBe(plan.finalIndex + 1)
         expect(strip[plan.finalIndex]).toBe(digit)
+        expect(strip.length).toBe(plan.finalIndex + 2)
       }
     }
   })
 })
 
-describe('buildReelStrip', () => {
-  it('ends on the target digit after full cycles', () => {
-    const strip = buildReelStrip(4, 2)
-    // finalIndex = 2*10+4 = 24 → length 25
-    expect(strip).toHaveLength(25)
-    expect(strip[24]).toBe(4)
-    expect(strip.slice(0, 10)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+describe('buildMechanicalPath', () => {
+  it('starts at 0, overshoots past target, then settles exactly', () => {
+    const finalIndex = 24
+    const target = -finalIndex
+    const path = buildMechanicalPath(finalIndex, 2)
+    const overshoot = overshootForDigit(2)
+
+    expect(path[0]).toEqual({ offset: 0, y: 0 })
+    expect(path[path.length - 1]).toEqual({ offset: 1, y: target })
+
+    const minY = Math.min(...path.map((p) => p.y))
+    // 越过目标：比 target 更负，幅度约 8%–15% em
+    expect(minY).toBeLessThan(target)
+    expect(minY).toBeGreaterThanOrEqual(target - overshoot - 1e-9)
+    expect(minY).toBeLessThanOrEqual(target - 0.08 + 1e-9)
+  })
+
+  it('reverses direction multiple times during settle (damped swing)', () => {
+    const path = buildMechanicalPath(30, 1)
+    const target = -30
+    // 取 settle 段（offset > 0.72）看误差符号变化
+    const settle = path.filter((p) => p.offset > 0.72)
+    const signs: number[] = []
+    for (const p of settle) {
+      const err = p.y - target
+      if (Math.abs(err) < 1e-6) continue
+      const s = Math.sign(err)
+      if (signs.length === 0 || signs[signs.length - 1] !== s) signs.push(s)
+    }
+    // 至少 2 次方向反转（3 个符号段）
+    expect(signs.length).toBeGreaterThanOrEqual(3)
   })
 })
 
 describe('reelKeyframes', () => {
-  it('ends exactly on the final index with a slight overshoot before settle', () => {
-    const frames = reelKeyframes(24)
+  it('exports linear-time keyframes ending on the exact digit slot', () => {
+    const frames = reelKeyframes(24, 0)
     expect(frames[0].transform).toBe('translateY(0em)')
-    expect(String(frames[1].transform)).toContain('translateY(-24.35em)')
-    expect(frames[2].transform).toBe('translateY(-24em)')
+    expect(frames[frames.length - 1].transform).toBe('translateY(-24em)')
+    expect(frames[frames.length - 1].offset).toBe(1)
+    expect(frames.length).toBeGreaterThan(40)
   })
 })

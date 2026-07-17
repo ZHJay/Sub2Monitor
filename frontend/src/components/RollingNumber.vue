@@ -83,10 +83,11 @@ defineExpose({ replay })
 .rolling-number {
   display: inline-flex;
   align-items: baseline;
+  gap: 0.04em;
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
   font-family: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   line-height: 1;
 }
 
@@ -94,5 +95,6 @@ defineExpose({ replay })
   display: inline-block;
   line-height: 1;
   white-space: pre;
+  padding: 0 0.02em;
 }
 </style>

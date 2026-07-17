@@ -1,30 +1,39 @@
 // Layer: L0 公理层
-// Contract: 把展示字符串拆成 digit/static token，并为每位算出独立滚轮时序。
-// Invariant: 动画只消费最终展示串，不改动真实数值。
+// Contract: 展示串分词 + 机械滚轮时序/轨迹；动画只消费最终展示串。
+// Invariant: strip[finalIndex] === 目标数字；轨迹终点 y 精确等于 -finalIndex。
 
 export type ReelToken =
   | { kind: 'digit'; digit: number; fromRight: number; totalDigits: number }
   | { kind: 'static'; char: string }
 
 export interface ReelSpinPlan {
-  /** 完整 0–9 圈数（右侧更少、左侧更多）。 */
   cycles: number
-  /** 动画时长 ms。 */
   durationMs: number
-  /** 启动延迟 ms（左侧稍晚）。 */
   delayMs: number
-  /** 条带最终停靠的单元格下标（0-based）。 */
   finalIndex: number
 }
 
-const MIN_DURATION_MS = 1600
-const MAX_DURATION_MS = 2800
+export interface MechanicalSample {
+  /** 0–1 时间进度。 */
+  offset: number
+  /** translateY（em），负值向下滚。 */
+  y: number
+}
+
+const MIN_DURATION_MS = 2000
+const MAX_DURATION_MS = 3000
 const BASE_CYCLES = 3
 const CYCLE_STEP = 1
-const DELAY_STEP_MS = 70
-const DURATION_STEP_MS = 200
+const DELAY_STEP_MS = 90
+const DURATION_STEP_MS = 220
 
-/** 拆分展示串：数字位滚动，其余字符（$ . , % / K M 等）静止。 */
+/** 主旋转结束时刻（之后进入阻尼回摆）。 */
+const SPIN_END = 0.72
+/** 过冲幅度（数字高度比例，约 8%–15%）。 */
+const OVERSHOOT_MIN = 0.08
+const OVERSHOOT_MAX = 0.15
+
+/** 拆分展示串：数字位滚动，其余字符静止。 */
 export function tokenizeDisplay(value: string): ReelToken[] {
   const text = value ?? ''
   const digitCount = countDigits(text)
@@ -57,8 +66,8 @@ export function countDigits(value: string): number {
 }
 
 /**
- * 右侧位先锁定：fromRight=0 最短；左侧位更多圈、更长时长、略晚启动。
- * reducedMotion 时直接定格，无滚动。
+ * 右侧先锁定：fromRight=0 更短；左侧更多圈、更长、略晚启动。
+ * reducedMotion：单格定格，finalIndex=0。
  */
 export function planReelSpin(
   digit: number,
@@ -66,7 +75,6 @@ export function planReelSpin(
   reducedMotion: boolean
 ): ReelSpinPlan {
   const safeDigit = ((digit % 10) + 10) % 10
-  // reducedMotion：单格条带，停在 index 0，禁止 translate 到空区。
   if (reducedMotion) {
     return { cycles: 0, durationMs: 0, delayMs: 0, finalIndex: 0 }
   }
@@ -77,35 +85,85 @@ export function planReelSpin(
     MIN_DURATION_MS + fromRight * DURATION_STEP_MS
   )
   const delayMs = fromRight * DELAY_STEP_MS
-  // Invariant: strip[i] === i % 10，且 strip[finalIndex] === safeDigit。
   const finalIndex = cycles * 10 + safeDigit
   return { cycles, durationMs, delayMs, finalIndex }
 }
 
 /**
- * 生成滚轮条带，长度 = finalIndex + 1。
- * Why: 旧实现只追加 1 格目标位，但 finalIndex = cycles*10+digit，
- * 会 translate 超出条带 → 动画结束空白。
+ * 条带覆盖到 finalIndex+1：过冲可见相邻数字，且不滚出空区。
  */
 export function buildReelStrip(digit: number, cycles: number): number[] {
   const safeDigit = ((digit % 10) + 10) % 10
   if (cycles <= 0) return [safeDigit]
   const finalIndex = cycles * 10 + safeDigit
+  const last = finalIndex + 1
   const strip: number[] = []
-  for (let i = 0; i <= finalIndex; i += 1) strip.push(i % 10)
+  for (let i = 0; i <= last; i += 1) strip.push(i % 10)
   return strip
 }
 
-/** 轻微过冲后回弹的关键帧进度（视觉惯性）。 */
-export function reelKeyframes(finalIndex: number): Keyframe[] {
-  const end = -finalIndex
-  const overshoot = end - 0.35
-  return [
-    { transform: 'translateY(0em)', offset: 0 },
-    { transform: `translateY(${overshoot}em)`, offset: 0.9 },
-    { transform: `translateY(${end}em)`, offset: 1 },
-  ]
+/** 位相关过冲：右侧略小、左侧略大，仍落在 8%–15%。 */
+export function overshootForDigit(fromRight: number): number {
+  const raw = OVERSHOOT_MIN + fromRight * 0.012
+  return Math.min(OVERSHOOT_MAX, Math.max(OVERSHOOT_MIN, raw))
 }
 
-/** 前快后慢的 ease-out（带极轻回弹感）。 */
-export const REEL_EASING = 'cubic-bezier(0.12, 0.82, 0.18, 1)'
+/**
+ * 机械轨迹采样（线性时间轴 + 非线性位移）。
+ * Why: 不用单段 ease-out；前段高速惯性，后段阻尼振荡 2–3 次后精确归零。
+ */
+export function buildMechanicalPath(
+  finalIndex: number,
+  fromRight = 0
+): MechanicalSample[] {
+  const target = -finalIndex
+  const overshoot = overshootForDigit(fromRight)
+  // 继续滚的方向更负：先冲到 target - overshoot
+  const spinEndY = target - overshoot
+  const samples: MechanicalSample[] = []
+
+  // —— 阶段 1：高速旋转 + 非线性减速，首次越过目标 ——
+  const spinSamples = 36
+  for (let i = 0; i <= spinSamples; i += 1) {
+    const u = i / spinSamples
+    const offset = u * SPIN_END
+    // 前半段更快：指数接近 1，而非对称 ease
+    const p = 1 - Math.pow(1 - u, 2.75)
+    // 强制 +0，避免 -0 在测试/序列化中制造噪声
+    const y = u === 0 ? 0 : spinEndY * p
+    samples.push({ offset, y })
+  }
+
+  // —— 阶段 2：阻尼回摆（低弹性高阻尼，约 2–3 次半周期）——
+  // error(0)= -overshoot；y = target + error
+  const settleSamples = 28
+  const decay = 5.2
+  const omega = 2.35 * Math.PI // ~1.15 周期 → 约 2–3 次方向反转
+  for (let i = 1; i <= settleSamples; i += 1) {
+    const u = i / settleSamples
+    const offset = SPIN_END + u * (1 - SPIN_END)
+    const error = -overshoot * Math.exp(-decay * u) * Math.cos(omega * u)
+    samples.push({ offset, y: target + error })
+  }
+
+  // 强制精确终点，消除浮点残差
+  const last = samples[samples.length - 1]
+  if (!last || last.offset < 1 || Math.abs(last.y - target) > 1e-9) {
+    samples.push({ offset: 1, y: target })
+  } else {
+    last.offset = 1
+    last.y = target
+  }
+  return samples
+}
+
+/** WAAPI 关键帧：位移已含物理曲线，整体 easing 必须 linear。 */
+export function reelKeyframes(finalIndex: number, fromRight = 0): Keyframe[] {
+  return buildMechanicalPath(finalIndex, fromRight).map((s) => ({
+    transform: `translateY(${s.y}em)`,
+    offset: s.offset,
+  }))
+}
+
+/** 线性插值时间轴；位移曲线由采样点决定。 */
+export const REEL_EASING = 'linear'
