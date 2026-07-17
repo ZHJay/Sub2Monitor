@@ -25,9 +25,11 @@ const STACK_COLORS_BOTTOM_TO_TOP = [
 
 export const STACK_ID = 'models'
 export const SLIDE_MS = 480
-/** Metric / time-range morph duration (stretch-shrink + color). */
+/** Metric morph duration (stretch-shrink + color). */
 export const MORPH_MS = 560
 export const MORPH_EASING = 'easeInOutCubic'
+/** Range switch: fade out → swap data → fade in (no stretched fake polyline). */
+export const CROSSFADE_MS = 160
 
 function colorForStackIndex(index: number, count: number): { fill: string; stroke: string } {
   const palette = STACK_COLORS_BOTTOM_TO_TOP

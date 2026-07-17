@@ -55,6 +55,7 @@ import {
 import {
   type ModelSeries,
   type StackedLineDataset,
+  CROSSFADE_MS,
   SLIDE_MS,
   bridgeSeriesForMorph,
   buildDatasets,
@@ -68,7 +69,7 @@ import {
 import { writeStackedDatasets } from './chartLineMutations'
 import { buildTimeSeriesChartConfig } from './timeSeriesChartConfig'
 
-// Layer: L2 流程层 — chart lifecycle: slide (live window) vs morph (metric/range).
+// Layer: L2 流程层 — chart lifecycle: slide / metric-morph / range-crossfade.
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, LineController, Filler, Tooltip)
 
@@ -88,12 +89,15 @@ let lastTimestamps: string[] = []
 let lastModelsKey = ''
 /** Raw (non-cumulative) series from the last painted frame — morph bridge source. */
 let lastSeriesRaw: ModelSeries[] = []
-/** Metric used for the currently painted Y ticks (avoid premature unit switch). */
+/** Metric / range of the currently painted frame. */
 let lastPaintedMetric = ''
+let lastPaintedRange = ''
 const pending = ref(false)
 let pendingRange = ''
 let pendingMetric = ''
 let slideTimer: number | null = null
+let fadeTimer: number | null = null
+let fadeGen = 0
 
 const legendItems = ref<{ label: string; color: string }[]>([])
 
@@ -135,11 +139,31 @@ function clearSlideTimer() {
   }
 }
 
+function clearFadeTimer() {
+  if (fadeTimer != null) {
+    window.clearTimeout(fadeTimer)
+    fadeTimer = null
+  }
+}
+
 function resetStageTransform() {
   const el = chartStage.value
   if (!el) return
   el.style.transition = 'none'
   el.style.transform = 'translateX(0)'
+}
+
+function resetStageOpacity() {
+  const el = chartStage.value
+  if (!el) return
+  el.style.transition = 'none'
+  el.style.opacity = '1'
+}
+
+function cancelCrossfade() {
+  fadeGen += 1
+  clearFadeTimer()
+  resetStageOpacity()
 }
 
 /** After data already matches new window, offset stage right then ease back to 0 → content slides left. */
@@ -169,6 +193,32 @@ function playSlideLeft(shiftCount: number, prevLen: number) {
   })
 }
 
+/**
+ * Range switch transition: fade out → swap real data → fade in.
+ * Why not length-bridge morph: resampling old polyline onto new bucket count paints a fake curve first.
+ */
+function playCrossfadeSwap(apply: () => void) {
+  const el = chartStage.value
+  const gen = ++fadeGen
+  if (!el) {
+    apply()
+    return
+  }
+  clearFadeTimer()
+  el.style.transition = `opacity ${CROSSFADE_MS}ms ease`
+  el.style.opacity = '0'
+  fadeTimer = window.setTimeout(() => {
+    if (gen !== fadeGen) return
+    apply()
+    requestAnimationFrame(() => {
+      if (gen !== fadeGen || !chartStage.value) return
+      chartStage.value.style.transition = `opacity ${CROSSFADE_MS}ms ease`
+      chartStage.value.style.opacity = '1'
+    })
+    fadeTimer = null
+  }, CROSSFADE_MS)
+}
+
 function createChart() {
   if (!chartCanvas.value) return
   chartInstance = new Chart(chartCanvas.value, buildTimeSeriesChartConfig(() => props.metric))
@@ -182,55 +232,74 @@ function writeChartData(range: string, timestamps: string[], series: ModelSeries
   syncLegend(datasets)
 }
 
-function applySeriesUpdate(metric: string, range: string, timestamps: string[], series: ModelSeries[]) {
-  if (!chartInstance) createChart()
-  if (!chartInstance) return
-
-  const prevTs = lastTimestamps
-  const prevLen = prevTs.length
-  const shift = detectTimestampShift(prevTs, timestamps)
-  const sameModels = modelsKey(series) === lastModelsKey && lastModelsKey !== ''
-  const canSlide = shift > 0 && sameModels && prevLen > 0
-  const isFirstPaint = prevLen === 0 || chartInstance.data.datasets.length === 0 || lastSeriesRaw.length === 0
-  // Morph any non-slide update: metric switch, range switch, or model re-rank.
-  // Do NOT require sameModels — USD/token reorders Top-N; ranges change membership.
-  const canMorph = !isFirstPaint && !canSlide && timestamps.length > 0 && series.length > 0
-
-  resetStageTransform()
-
-  if (canMorph) {
-    const labels = timestamps.map((ts) => formatAxisLabel(ts, range))
-    // Bridge keeps previous metric tick format so Y labels don't flash wrong units / widths.
-    if (lastPaintedMetric) setYTickFormat(chartInstance, lastPaintedMetric)
-    const fromSeries = bridgeSeriesForMorph(lastSeriesRaw, series, labels.length)
-    writeChartData(range, timestamps, fromSeries, false)
-    chartInstance.update('none')
-    // Apply target unit only with target values — then morph scale + shape together.
-    setYTickFormat(chartInstance, metric)
-    writeChartData(range, timestamps, series, true)
-    // Runtime accepts custom transition names; Chart.js typings only list built-ins.
-    chartInstance.update('morph' as 'none')
-  } else {
-    setYTickFormat(chartInstance, metric)
-    writeChartData(range, timestamps, series, sameModels && chartInstance.data.datasets.length > 0)
-    // First paint / empty / slide: no Chart.js tween.
-    chartInstance.update('none')
-    if (canSlide) playSlideLeft(shift, prevLen)
-  }
-
+function commitPaintState(metric: string, range: string, timestamps: string[], series: ModelSeries[]) {
   lastTimestamps = timestamps.slice()
   lastModelsKey = modelsKey(series)
   lastSeriesRaw = cloneSeries(series)
   lastPaintedMetric = metric
+  lastPaintedRange = range
   lastDataKey = dataKey(timestamps, series, metric, range)
   pending.value = false
   pendingRange = range
   pendingMetric = metric
 }
 
+function applySeriesUpdate(metric: string, range: string, timestamps: string[], series: ModelSeries[]) {
+  if (!chartInstance) createChart()
+  if (!chartInstance) return
+
+  cancelCrossfade()
+  const prevTs = lastTimestamps
+  const prevLen = prevTs.length
+  const shift = detectTimestampShift(prevTs, timestamps)
+  const sameModels = modelsKey(series) === lastModelsKey && lastModelsKey !== ''
+  const canSlide = shift > 0 && sameModels && prevLen > 0
+  const isFirstPaint = prevLen === 0 || chartInstance.data.datasets.length === 0 || lastSeriesRaw.length === 0
+  const rangeChanged = lastPaintedRange !== '' && range !== lastPaintedRange
+  const canTransition = !isFirstPaint && !canSlide && timestamps.length > 0 && series.length > 0
+
+  resetStageTransform()
+
+  if (canTransition && !rangeChanged) {
+    // Metric-only (same window length): y/color morph. No length-bridge fake curve.
+    const labelsLen = timestamps.length
+    const sameLen = lastTimestamps.length === labelsLen
+    if (lastPaintedMetric) setYTickFormat(chartInstance, lastPaintedMetric)
+    if (sameLen) {
+      const fromSeries = bridgeSeriesForMorph(lastSeriesRaw, series, labelsLen)
+      writeChartData(range, timestamps, fromSeries, false)
+      chartInstance.update('none')
+    }
+    setYTickFormat(chartInstance, metric)
+    writeChartData(range, timestamps, series, sameLen)
+    chartInstance.update('morph' as 'none')
+    commitPaintState(metric, range, timestamps, series)
+    return
+  }
+
+  if (canTransition && rangeChanged) {
+    // 1h↔6h etc.: crossfade only — never paint resampled old shape on new axis.
+    const ts = timestamps.slice()
+    const ser = cloneSeries(series)
+    playCrossfadeSwap(() => {
+      if (!chartInstance) return
+      setYTickFormat(chartInstance, metric)
+      writeChartData(range, ts, ser, false)
+      chartInstance.update('none')
+      commitPaintState(metric, range, ts, ser)
+    })
+    return
+  }
+
+  setYTickFormat(chartInstance, metric)
+  writeChartData(range, timestamps, series, sameModels && chartInstance.data.datasets.length > 0)
+  chartInstance.update('none')
+  if (canSlide) playSlideLeft(shift, prevLen)
+  commitPaintState(metric, range, timestamps, series)
+}
+
 function onControlChange() {
   // Only mark pending — do NOT reformat ticks or reflow yet.
-  // Premature unit switch on old values makes Y labels explode/shrink and jumps the time axis.
   pending.value = true
   pendingRange = props.timeRange
   pendingMetric = props.metric
@@ -258,6 +327,7 @@ onMounted(() => nextTick(() => {
   }
 }))
 onBeforeUnmount(() => {
+  cancelCrossfade()
   clearSlideTimer()
   chartInstance?.destroy()
   chartInstance = null
