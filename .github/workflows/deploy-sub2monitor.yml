@@ -1,0 +1,50 @@
+name: Deploy Sub2Monitor
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deploy-sub2monitor.yml"
+      - ".dockerignore"
+      - "Dockerfile.runtime"
+      - "docker-compose.yml"
+      - "backend/**"
+      - "frontend/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sub2monitor-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure restricted deployment SSH key
+        shell: bash
+        env:
+          DEPLOY_KEY: ${{ secrets.SUB2MONITOR_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.SUB2MONITOR_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/id_sub2monitor_deploy"
+          chmod 600 "$HOME/.ssh/id_sub2monitor_deploy"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Pull GitHub main and deploy on production
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.SUB2MONITOR_DEPLOY_HOST }}
+        run: |
+          # The server forces this key to a root-owned deploy script; no arbitrary command is accepted.
+          ssh -i "$HOME/.ssh/id_sub2monitor_deploy" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o LogLevel=ERROR \
+            "sub2monitor-deploy@$DEPLOY_HOST" deploy-sub2monitor
