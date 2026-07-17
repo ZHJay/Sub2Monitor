@@ -1,0 +1,14 @@
+.git/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.worktrees/
+.superpowers/
+docs/
+frontend/node_modules/
+backend/apimonitor
+backend/apimonitor-*
+backend/sub2monitor
+backend/sub2monitor-linux-amd64

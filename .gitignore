@@ -1,0 +1,13 @@
+.env
+*.log
+# The verified ARM64 release executable and frontend/dist are versioned.
+# Keep only local and legacy build outputs out of Git.
+backend/sub2monitor
+backend/sub2monitor-linux-amd64
+# Legacy local build artifacts kept outside Git during the rename.
+backend/apimonitor
+backend/apimonitor-*
+frontend/node_modules/
+.DS_Store
+.worktrees/
+.superpowers/

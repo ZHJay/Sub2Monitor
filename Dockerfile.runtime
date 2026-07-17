@@ -1,0 +1,10 @@
+FROM alpine:latest
+ARG APP_ARCH=arm64
+RUN apk --no-cache add ca-certificates tzdata
+WORKDIR /app
+# Release images intentionally use the verified prebuilt dist tree; rebuilding
+# frontend/src currently produces a different, older dashboard bundle.
+COPY backend/sub2monitor-linux-${APP_ARCH} ./sub2monitor
+COPY frontend/dist ./frontend/dist
+EXPOSE 8090
+CMD ["./sub2monitor"]

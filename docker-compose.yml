@@ -1,0 +1,33 @@
+services:
+  sub2monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile.runtime
+      args:
+        APP_ARCH: arm64
+    container_name: sub2monitor
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8090"
+    environment:
+      - DB_HOST=sub2api-postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-monitor_readonly}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
+      - DB_NAME=sub2api
+      - DB_SSLMODE=disable
+      - SERVER_PORT=8090
+      - GIN_MODE=release
+      - TZ=Asia/Shanghai
+    networks:
+      - sub2api_network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  sub2api_network:
+    external: true
+    name: sub2api-deploy_sub2api-network
