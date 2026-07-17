@@ -62,6 +62,7 @@ import {
   dataKey,
   detectTimestampShift,
   formatAxisLabel,
+  formatYAxisTick,
   modelsKey,
 } from './chartStackSeries'
 import { writeStackedDatasets } from './chartLineMutations'
@@ -87,6 +88,8 @@ let lastTimestamps: string[] = []
 let lastModelsKey = ''
 /** Raw (non-cumulative) series from the last painted frame — morph bridge source. */
 let lastSeriesRaw: ModelSeries[] = []
+/** Metric used for the currently painted Y ticks (avoid premature unit switch). */
+let lastPaintedMetric = ''
 const pending = ref(false)
 let pendingRange = ''
 let pendingMetric = ''
@@ -121,13 +124,7 @@ function syncLegend(datasets: StackedLineDataset[]) {
 function setYTickFormat(chart: Chart<'line'>, metric: string) {
   const y = chart.options.scales?.y
   if (y && 'ticks' in y && y.ticks) {
-    y.ticks.callback = (value) => {
-      const n = Number(value)
-      if (metric === 'cost') return `$${n}`
-      if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(0)}M`
-      if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`
-      return String(n)
-    }
+    y.ticks.callback = (value) => formatYAxisTick(Number(value), metric)
   }
 }
 
@@ -199,19 +196,22 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   // Do NOT require sameModels — USD/token reorders Top-N; ranges change membership.
   const canMorph = !isFirstPaint && !canSlide && timestamps.length > 0 && series.length > 0
 
-  setYTickFormat(chartInstance, metric)
   resetStageTransform()
 
   if (canMorph) {
     const labels = timestamps.map((ts) => formatAxisLabel(ts, range))
-    // Bridge: old raw values (by model name) → new order + new length, then morph to real data.
+    // Bridge keeps previous metric tick format so Y labels don't flash wrong units / widths.
+    if (lastPaintedMetric) setYTickFormat(chartInstance, lastPaintedMetric)
     const fromSeries = bridgeSeriesForMorph(lastSeriesRaw, series, labels.length)
     writeChartData(range, timestamps, fromSeries, false)
     chartInstance.update('none')
+    // Apply target unit only with target values — then morph scale + shape together.
+    setYTickFormat(chartInstance, metric)
     writeChartData(range, timestamps, series, true)
     // Runtime accepts custom transition names; Chart.js typings only list built-ins.
     chartInstance.update('morph' as 'none')
   } else {
+    setYTickFormat(chartInstance, metric)
     writeChartData(range, timestamps, series, sameModels && chartInstance.data.datasets.length > 0)
     // First paint / empty / slide: no Chart.js tween.
     chartInstance.update('none')
@@ -221,6 +221,7 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   lastTimestamps = timestamps.slice()
   lastModelsKey = modelsKey(series)
   lastSeriesRaw = cloneSeries(series)
+  lastPaintedMetric = metric
   lastDataKey = dataKey(timestamps, series, metric, range)
   pending.value = false
   pendingRange = range
@@ -228,13 +229,11 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
 }
 
 function onControlChange() {
+  // Only mark pending — do NOT reformat ticks or reflow yet.
+  // Premature unit switch on old values makes Y labels explode/shrink and jumps the time axis.
   pending.value = true
   pendingRange = props.timeRange
   pendingMetric = props.metric
-  if (chartInstance) {
-    setYTickFormat(chartInstance, props.metric)
-    chartInstance.update('none')
-  }
 }
 
 function onDataChange() {

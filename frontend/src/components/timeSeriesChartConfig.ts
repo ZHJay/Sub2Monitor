@@ -6,6 +6,7 @@ import {
   type StackedLineDataset,
   MORPH_EASING,
   MORPH_MS,
+  Y_AXIS_WIDTH_PX,
   formatMetricValue,
 } from './chartStackSeries'
 
@@ -110,6 +111,10 @@ export function buildTimeSeriesChartConfig(
           grid: { color: 'rgba(255,255,255,0.08)' },
           ticks: { color: '#86868B' },
           border: { color: 'rgba(255,255,255,0.12)' },
+          // Lock slot width: USD `$0.12` vs Tokens `12.3M` must not resize plot/time axis.
+          afterFit(axis) {
+            axis.width = Y_AXIS_WIDTH_PX
+          },
         },
       },
     },

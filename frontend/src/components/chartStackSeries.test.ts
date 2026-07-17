@@ -4,6 +4,7 @@ import {
   buildDatasets,
   resampleNumbers,
   bridgeSeriesForMorph,
+  formatYAxisTick,
 } from './chartStackSeries'
 
 describe('detectTimestampShift', () => {
@@ -74,5 +75,19 @@ describe('bridgeSeriesForMorph', () => {
     expect(bridged.map((s) => s.model)).toEqual(['a', 'c'])
     expect(bridged[0].values).toEqual([0, 2, 4])
     expect(bridged[1].values).toEqual([0, 0, 0])
+  })
+})
+
+describe('formatYAxisTick', () => {
+  it('keeps cost ticks compact', () => {
+    expect(formatYAxisTick(0.12, 'cost')).toBe('$0.12')
+    expect(formatYAxisTick(12.5, 'cost')).toBe('$12.5')
+    expect(formatYAxisTick(1500, 'cost')).toBe('$1.5K')
+  })
+
+  it('formats token ticks with K/M', () => {
+    expect(formatYAxisTick(900, 'tokens')).toBe('900')
+    expect(formatYAxisTick(12_500, 'tokens')).toBe('12.5K')
+    expect(formatYAxisTick(2_500_000, 'tokens')).toBe('2.5M')
   })
 })

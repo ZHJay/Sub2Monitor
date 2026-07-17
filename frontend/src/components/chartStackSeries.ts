@@ -43,6 +43,28 @@ export function formatMetricValue(v: number, metric: string): string {
   return v.toFixed(0)
 }
 
+/**
+ * Compact Y-axis tick labels with similar width for cost vs tokens.
+ * Why: long `$1234567` vs `1M` resizes the plot and makes the time axis jump.
+ */
+export function formatYAxisTick(n: number, metric: string): string {
+  if (!Number.isFinite(n)) return ''
+  const abs = Math.abs(n)
+  if (metric === 'cost') {
+    if (abs >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
+    if (abs >= 1_000) return `$${(n / 1_000).toFixed(1)}K`
+    if (abs >= 100) return `$${n.toFixed(0)}`
+    if (abs >= 10) return `$${n.toFixed(1)}`
+    return `$${n.toFixed(2)}`
+  }
+  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return n.toFixed(0)
+}
+
+/** Fixed Y-axis slot (px) so tick-string length never resizes the time axis. */
+export const Y_AXIS_WIDTH_PX = 56
+
 export function formatAxisLabel(ts: string, range: string): string {
   const date = new Date(ts)
   if (range === '1h' || range === '6h' || range === '24h') {
