@@ -63,7 +63,6 @@ import {
   CHART_DISPLAY_POINTS,
   CROSSFADE_MS,
   SLIDE_MS,
-  bridgeSeriesForMorph,
   buildDatasets,
   canLiveSlide,
   cloneSeries,
@@ -207,22 +206,21 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   motion.resetTransform()
   motion.cancel()
 
-  // Range and/or USD↔Tokens: same Chart.js y-morph on fixed display grid.
-  // Why: user wants curve stretch/shrink like metric switch, not opacity fade.
-  // Invariant: both ends are CHART_DISPLAY_POINTS so morph is pure y (labels snap).
-  // Risk: never paint a length-bridge of unequal bucket counts — only display-space.
+  // Range and/or USD↔Tokens: Chart.js y-morph on fixed display grid.
+  // Why: curve stretch like metric switch (not opacity fade).
+  // Invariant: display series are always CHART_DISPLAY_POINTS long.
+  // Why no bridge+update('none') before morph: that intermediate paint is the
+  // 假折线 flash (e.g. 24h→6h shows resampled-old curve under new labels).
+  // Contract: morph from the already-painted geometry → mutate/replace target → one morph update.
   if (canTransition && (rangeChanged || metricChanged) && !canSlide) {
     if (metricChanged && lastPaintedMetric) {
       setYTickFormat(chartInstance, lastPaintedMetric)
     } else {
       setYTickFormat(chartInstance, metric)
     }
-    // Bridge previous display y onto next model order; one none-frame then morph.
-    const fromSeries = bridgeSeriesForMorph(lastSeriesRaw, display.series, CHART_DISPLAY_POINTS)
-    writeChartData(range, display.timestamps, fromSeries, false)
-    chartInstance.update('none')
+    const sameCount = chartInstance.data.datasets.length === display.series.length
+    writeChartData(range, display.timestamps, display.series, sameCount)
     setYTickFormat(chartInstance, metric)
-    writeChartData(range, display.timestamps, display.series, true)
     chartInstance.update('morph' as 'none')
     commitPaintState(metric, range, timestamps, series, display.series)
     return
