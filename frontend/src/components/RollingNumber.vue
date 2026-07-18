@@ -3,6 +3,7 @@
     <template v-for="slot in slots" :key="slot.key">
       <DigitReel
         v-if="slot.kind === 'digit'"
+        class="rolling-number__digit"
         :digit="slot.digit"
         :from-digit="slot.fromDigit"
         :from-right="slot.fromRight"
@@ -119,8 +120,12 @@ defineExpose({ replay })
 }
 .rolling-number__static {
   display: inline-block;
+  flex: 0 0 auto;
   line-height: 1;
   white-space: pre;
   padding: 0 0.02em;
+}
+.rolling-number__digit {
+  flex: 0 0 auto;
 }
 </style>

@@ -14,5 +14,6 @@ describe('metric overflow contract', () => {
     expect(rollingNumber).toContain('min-width: 0')
     expect(rollingNumber).toContain('max-width: 100%')
     expect(rollingNumber).toContain('overflow: hidden')
+    expect(rollingNumber).toContain('flex: 0 0 auto')
   })
 })
