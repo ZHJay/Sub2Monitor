@@ -22,9 +22,9 @@
       </div>
     </div>
 
-    <!-- overflow hidden clips slide; stage opacity is driven inline for range crossfade -->
+    <!-- overflow hidden clips slide + snapshot overlay -->
     <div class="relative h-72 overflow-hidden">
-      <div ref="chartStage" class="absolute inset-0" style="opacity: 1; will-change: opacity, transform">
+      <div ref="chartStage" class="absolute inset-0">
         <canvas ref="chartCanvas" role="img" :aria-label="chartAriaLabel"></canvas>
       </div>
       <div
@@ -55,6 +55,7 @@ import {
 import {
   type ModelSeries,
   type StackedLineDataset,
+  CHART_DISPLAY_POINTS,
   CROSSFADE_MS,
   SLIDE_MS,
   bridgeSeriesForMorph,
@@ -65,12 +66,14 @@ import {
   formatAxisLabel,
   formatYAxisTick,
   modelsKey,
+  normalizeSeriesForDisplay,
 } from './chartStackSeries'
 import { writeStackedDatasets } from './chartLineMutations'
 import { applyChartChromeColors, buildTimeSeriesChartConfig } from './timeSeriesChartConfig'
+import { createStageMotion } from './chartStageMotion'
 import { useTheme } from '../composables/useTheme'
 
-// Layer: L2 流程层 — slide / metric-morph / range-crossfade (never length-bridge).
+// Layer: L2 流程层 — slide / metric-morph / range snapshot-crossfade.
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, LineController, Filler, Tooltip)
 
@@ -97,9 +100,18 @@ let lastPaintedRange = ''
 const pending = ref(false)
 let pendingRange = ''
 let pendingMetric = ''
-let slideTimer: number | null = null
-let fadeTimer: number | null = null
-let fadeGen = 0
+
+const motion = createStageMotion({
+  getStage: () => chartStage.value,
+  getChartImage: () => {
+    try {
+      return chartInstance ? chartInstance.toBase64Image('image/png', 1) : null
+    } catch {
+      return null
+    }
+  },
+  crossfadeMs: CROSSFADE_MS,
+})
 
 const legendItems = ref<{ label: string; color: string }[]>([])
 
@@ -134,155 +146,6 @@ function setYTickFormat(chart: Chart<'line'>, metric: string) {
   }
 }
 
-function clearSlideTimer() {
-  if (slideTimer != null) {
-    window.clearTimeout(slideTimer)
-    slideTimer = null
-  }
-}
-
-function clearFadeTimer() {
-  if (fadeTimer != null) {
-    window.clearTimeout(fadeTimer)
-    fadeTimer = null
-  }
-}
-
-function resetStageTransform() {
-  const el = chartStage.value
-  if (!el) return
-  el.style.transition = 'none'
-  el.style.transform = 'translateX(0)'
-}
-
-function resetStageOpacity() {
-  const el = chartStage.value
-  if (!el) return
-  el.style.transition = 'none'
-  el.style.opacity = '1'
-}
-
-/** Abort in-flight fade; optionally snap visible (metric/slide paths need a solid stage). */
-function cancelCrossfade(resetOpacity = true) {
-  fadeGen += 1
-  clearFadeTimer()
-  if (resetOpacity) resetStageOpacity()
-}
-
-function stageOpacity(): number {
-  const el = chartStage.value
-  if (!el) return 1
-  const n = Number.parseFloat(getComputedStyle(el).opacity || '1')
-  return Number.isFinite(n) ? n : 1
-}
-
-/** Force the browser to commit current inline styles before starting a transition. */
-function commitStageStyle(el: HTMLElement) {
-  void el.offsetWidth
-}
-
-/**
- * Begin range fade-out as soon as the pill is clicked (network still in flight).
- * Why: waiting until data arrives made the swap feel like a hard cut.
- */
-function beginRangeFadeOut() {
-  const el = chartStage.value
-  if (!el) return
-  const gen = ++fadeGen
-  clearFadeTimer()
-  el.style.transition = 'none'
-  el.style.opacity = '1'
-  commitStageStyle(el)
-  requestAnimationFrame(() => {
-    if (gen !== fadeGen || !chartStage.value) return
-    chartStage.value.style.transition = `opacity ${CROSSFADE_MS}ms ease`
-    chartStage.value.style.opacity = '0'
-  })
-}
-
-/** After data already matches new window, offset stage right then ease back to 0 → content slides left. */
-function playSlideLeft(shiftCount: number, prevLen: number) {
-  const el = chartStage.value
-  if (!el || !chartInstance || shiftCount <= 0 || prevLen <= 0) return
-
-  const area = chartInstance.chartArea
-  const plotWidth = Math.max(1, area.right - area.left)
-  const shiftPx = (shiftCount / prevLen) * plotWidth
-
-  clearSlideTimer()
-  el.style.transition = 'none'
-  el.style.transform = `translateX(${shiftPx}px)`
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      if (!chartStage.value) return
-      chartStage.value.style.transition = `transform ${SLIDE_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`
-      chartStage.value.style.transform = 'translateX(0)'
-      slideTimer = window.setTimeout(() => {
-        resetStageTransform()
-        slideTimer = null
-      }, SLIDE_MS + 40)
-    })
-  })
-}
-
-/**
- * Range switch: fade out → write real data → fade in.
- * Invariant: never paint a resampled old polyline on the new axis (假折线).
- * Why double-rAF / reflow: setting transition+opacity in the same frame after
- * `transition: none` is coalesced by the browser into a hard cut (no animation).
- */
-function playCrossfadeSwap(apply: () => void) {
-  const el = chartStage.value
-  const gen = ++fadeGen
-  if (!el) {
-    apply()
-    return
-  }
-  clearFadeTimer()
-
-  const fadeIn = () => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (gen !== fadeGen || !chartStage.value) return
-        const stage = chartStage.value
-        stage.style.transition = `opacity ${CROSSFADE_MS}ms ease`
-        stage.style.opacity = '1'
-      })
-    })
-  }
-
-  const swapThenIn = () => {
-    if (gen !== fadeGen) return
-    apply()
-    fadeIn()
-    fadeTimer = null
-  }
-
-  // Already hidden (early fade-out on pill click) → swap under cover, then fade in.
-  if (stageOpacity() < 0.08) {
-    swapThenIn()
-    return
-  }
-
-  // Mid early-fade: keep going to 0 without snapping back to full opacity (that looked like no animation / a flash).
-  if (stageOpacity() < 0.99) {
-    el.style.transition = `opacity ${CROSSFADE_MS}ms ease`
-    el.style.opacity = '0'
-    fadeTimer = window.setTimeout(swapThenIn, CROSSFADE_MS)
-    return
-  }
-
-  el.style.transition = 'none'
-  el.style.opacity = '1'
-  commitStageStyle(el)
-  requestAnimationFrame(() => {
-    if (gen !== fadeGen || !chartStage.value) return
-    chartStage.value.style.transition = `opacity ${CROSSFADE_MS}ms ease`
-    chartStage.value.style.opacity = '0'
-    fadeTimer = window.setTimeout(swapThenIn, CROSSFADE_MS)
-  })
-}
-
 function createChart() {
   if (!chartCanvas.value) return
   chartInstance = new Chart(chartCanvas.value, buildTimeSeriesChartConfig(() => props.metric))
@@ -308,10 +171,20 @@ function commitPaintState(metric: string, range: string, timestamps: string[], s
   pendingMetric = metric
 }
 
+function playSlideLeft(shiftCount: number, prevLen: number) {
+  if (!chartInstance || shiftCount <= 0 || prevLen <= 0) return
+  const area = chartInstance.chartArea
+  const plotWidth = Math.max(1, area.right - area.left)
+  const shiftPx = (shiftCount / prevLen) * plotWidth
+  motion.playSlideLeft(shiftPx, SLIDE_MS)
+}
+
 function applySeriesUpdate(metric: string, range: string, timestamps: string[], series: ModelSeries[]) {
   if (!chartInstance) createChart()
   if (!chartInstance) return
 
+  // Fixed display grid: range morph only tweens y on shared indices (no length-bridge frame).
+  const display = normalizeSeriesForDisplay(timestamps, series, CHART_DISPLAY_POINTS)
   const prevTs = lastTimestamps
   const prevLen = prevTs.length
   const shift = detectTimestampShift(prevTs, timestamps)
@@ -320,65 +193,79 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   const isFirstPaint = prevLen === 0 || chartInstance.data.datasets.length === 0 || lastSeriesRaw.length === 0
   const rangeChanged = lastPaintedRange !== '' && range !== lastPaintedRange
   const metricChanged = lastPaintedMetric !== '' && metric !== lastPaintedMetric
-  const canTransition = !isFirstPaint && !canSlide && timestamps.length > 0 && series.length > 0
+  const hasData = display.timestamps.length > 0 && display.series.length > 0
+  const canTransition = !isFirstPaint && !canSlide && hasData
+  const sameDsCount = chartInstance.data.datasets.length === display.series.length
 
-  resetStageTransform()
+  motion.resetTransform()
 
-  // Range always wins: 24h→6h etc. never morph / never paint resampled old shape.
-  // Do NOT cancelCrossfade(reset) here — that snaps opacity to 1 and kills the fade.
+  // Range path: prefer y-morph on fixed grid; fall back to freeze-frame if layer count changed.
+  // Invariant: never paint a resampled-old bridge frame (假折线).
   if (canTransition && rangeChanged) {
-    const ts = timestamps.slice()
-    const ser = cloneSeries(series)
-    playCrossfadeSwap(() => {
-      if (!chartInstance) return
+    const ts = display.timestamps.slice()
+    const ser = cloneSeries(display.series)
+    if (sameDsCount) {
+      motion.cancel(true)
       setYTickFormat(chartInstance, metric)
-      writeChartData(range, ts, ser, false)
-      chartInstance.update('none')
-      commitPaintState(metric, range, ts, ser)
-    })
+      writeChartData(range, ts, ser, true)
+      chartInstance.update('morph' as 'none')
+      commitPaintState(metric, range, timestamps, ser)
+    } else {
+      motion.playSnapshotCrossfade(() => {
+        if (!chartInstance) return
+        setYTickFormat(chartInstance, metric)
+        writeChartData(range, ts, ser, false)
+        chartInstance.update('none')
+        commitPaintState(metric, range, timestamps, ser)
+      })
+    }
     return
   }
 
-  // Non-range paths need a fully visible stage.
-  cancelCrossfade(true)
+  // Non-range paths: drop any overlay and keep stage solid.
+  motion.cancel(true)
 
-  // USD↔Tokens only: y/color morph on same bucket grid.
+  // USD↔Tokens only: y/color morph (Top-N may re-rank → bridge on fixed grid, not time-axis fake curve).
   if (canTransition && metricChanged) {
-    const labelsLen = timestamps.length
-    const sameLen = lastTimestamps.length === labelsLen
     if (lastPaintedMetric) setYTickFormat(chartInstance, lastPaintedMetric)
-    if (sameLen) {
-      // Align Top-N re-rank so morph has continuous stack; same-range so no time resample.
-      const fromSeries = bridgeSeriesForMorph(lastSeriesRaw, series, labelsLen)
-      writeChartData(range, timestamps, fromSeries, false)
+    if (sameDsCount) {
+      const fromSeries = bridgeSeriesForMorph(lastSeriesRaw, display.series, CHART_DISPLAY_POINTS)
+      writeChartData(range, display.timestamps, fromSeries, false)
       chartInstance.update('none')
+      setYTickFormat(chartInstance, metric)
+      writeChartData(range, display.timestamps, display.series, true)
+    } else {
+      setYTickFormat(chartInstance, metric)
+      writeChartData(range, display.timestamps, display.series, false)
     }
-    setYTickFormat(chartInstance, metric)
-    writeChartData(range, timestamps, series, sameLen)
     chartInstance.update('morph' as 'none')
-    commitPaintState(metric, range, timestamps, series)
+    commitPaintState(metric, range, timestamps, display.series)
     return
   }
 
   setYTickFormat(chartInstance, metric)
-  writeChartData(range, timestamps, series, sameModels && chartInstance.data.datasets.length > 0)
+  writeChartData(
+    range,
+    display.timestamps,
+    display.series,
+    sameModels && chartInstance.data.datasets.length > 0,
+  )
   chartInstance.update('none')
   if (canSlide) playSlideLeft(shift, prevLen)
-  commitPaintState(metric, range, timestamps, series)
+
+  // Risk: committing an empty frame under a new range would skip the next transition.
+  if (!hasData && rangeChanged && !isFirstPaint) {
+    pending.value = false
+    return
+  }
+  commitPaintState(metric, range, timestamps, display.series)
 }
 
 function onControlChange() {
-  // Only mark pending — do NOT reformat ticks or reflow yet.
+  // Only mark pending — do NOT reformat ticks yet (old values + new unit jumps the axis).
   pending.value = true
   pendingRange = props.timeRange
   pendingMetric = props.metric
-  // Range pill: start fade-out immediately so the wait is not a static hard cut.
-  if (lastPaintedRange !== '' && props.timeRange !== lastPaintedRange) {
-    beginRangeFadeOut()
-  } else if (lastPaintedMetric !== '' && props.metric !== lastPaintedMetric) {
-    // Metric morph keeps the stage visible.
-    cancelCrossfade(true)
-  }
 }
 
 function onDataChange() {
@@ -408,8 +295,7 @@ onMounted(() => nextTick(() => {
   }
 }))
 onBeforeUnmount(() => {
-  cancelCrossfade()
-  clearSlideTimer()
+  motion.cancel(true)
   chartInstance?.destroy()
   chartInstance = null
 })

@@ -29,15 +29,17 @@ export const SLIDE_MS = 480
 export const MORPH_MS = 560
 export const MORPH_EASING = 'easeInOutCubic'
 /**
- * Range switch: fade out → write real data → fade in (each leg).
- * Why: length-bridge / fixed-grid morph paints a resampled old polyline first (假折线).
- * ~280ms keeps the swap readable vs a hard cut; still shorter than metric morph.
+ * Range switch: freeze-frame overlay fade (each leg).
+ * Why: length-bridge morph paints 假折线; live-canvas opacity transitions were unreliable.
+ * 360ms is long enough to read as motion without feeling sluggish.
  */
-export const CROSSFADE_MS = 280
+export const CROSSFADE_MS = 360
 /**
- * Optional fixed grid for tests / experimental morph.
- * Invariant: production range switches must NOT resample onto this grid to morph;
- * they use crossfade with the API's real bucket counts.
+ * Fixed display resolution for metric/range y-morph.
+ * Why: Chart.js only morphs cleanly when index counts match.
+ * Invariant: range morph mutates in place on this grid — never paint a
+ * resampled-old bridge frame first (that was the 假折线 flash). When dataset
+ * count changes, use snapshot crossfade instead of length-bridge.
  */
 export const CHART_DISPLAY_POINTS = 48
 
