@@ -37,9 +37,10 @@ export function createRefreshDeadlineScheduler(
   }
 
   async function execute(): Promise<void> {
+    if (!running) return
     if (inFlight) {
       rerunRequested = true
-      return inFlight
+      return inFlight.catch(() => undefined)
     }
     if (timer !== null) environment.clearTimer(timer)
     timer = null

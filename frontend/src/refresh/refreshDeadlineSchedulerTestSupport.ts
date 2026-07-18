@@ -43,6 +43,14 @@ export class FakeRefreshEnvironment implements RefreshSchedulerEnvironment {
       timer.callback()
     }
   }
+
+  takeNextTimerCallback() {
+    const next = [...this.timers.entries()]
+      .sort((left, right) => left[1].dueMs - right[1].dueMs)[0]
+    if (!next) throw new Error('No timer scheduled')
+    this.timers.delete(next[0])
+    return next[1].callback
+  }
 }
 
 export async function flushPromises() {
@@ -52,6 +60,7 @@ export async function flushPromises() {
 
 export function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((done) => { resolve = done })
-  return { promise, resolve }
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail })
+  return { promise, resolve, reject }
 }

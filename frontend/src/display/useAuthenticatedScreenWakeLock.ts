@@ -17,7 +17,7 @@ export function useAuthenticatedScreenWakeLock(
     if (nextStatus === 'authenticated') {
       authenticatedIntent = true
       void wakeLock.start()
-    } else if (authenticatedIntent) {
+    } else if (nextStatus === 'anonymous' && authenticatedIntent) {
       authenticatedIntent = false
       void wakeLock.stop()
     }
