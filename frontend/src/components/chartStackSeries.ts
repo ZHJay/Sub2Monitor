@@ -199,6 +199,20 @@ export function detectTimestampShift(prev: string[], next: string[]): number {
   return k
 }
 
+/**
+ * Live-window slide is only valid when the UI range pill did not change.
+ * Why: 7d→24h / all→7d often share a timestamp suffix and look like a slide,
+ * which would skip range crossfade.
+ */
+export function canLiveSlide(args: {
+  rangeChanged: boolean
+  shift: number
+  sameModels: boolean
+  prevLen: number
+}): boolean {
+  return !args.rangeChanged && args.shift > 0 && args.sameModels && args.prevLen > 0
+}
+
 export function buildDatasets(series: ModelSeries[]): StackedLineDataset[] {
   // Pre-accumulate y so each band is drawn between consecutive cumulative curves.
   // Why not y.stacked + fill:'stack': monotone interpolation leaves black background holes.

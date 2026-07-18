@@ -7,6 +7,7 @@ import {
   formatYAxisTick,
   normalizeSeriesForDisplay,
   resampleTimestamps,
+  canLiveSlide,
   CHART_DISPLAY_POINTS,
 } from './chartStackSeries'
 
@@ -24,6 +25,26 @@ describe('detectTimestampShift', () => {
 
   it('returns -1 when series are unrelated', () => {
     expect(detectTimestampShift(['a', 'b'], ['x', 'y'])).toBe(-1)
+  })
+})
+
+describe('canLiveSlide', () => {
+  it('rejects slides when the range pill changed (subset windows look like slides)', () => {
+    expect(canLiveSlide({
+      rangeChanged: true,
+      shift: 5,
+      sameModels: true,
+      prevLen: 24,
+    })).toBe(false)
+  })
+
+  it('allows slides only for same-range live advance', () => {
+    expect(canLiveSlide({
+      rangeChanged: false,
+      shift: 1,
+      sameModels: true,
+      prevLen: 24,
+    })).toBe(true)
   })
 })
 

@@ -60,6 +60,7 @@ import {
   SLIDE_MS,
   bridgeSeriesForMorph,
   buildDatasets,
+  canLiveSlide,
   cloneSeries,
   dataKey,
   detectTimestampShift,
@@ -183,50 +184,48 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   if (!chartInstance) createChart()
   if (!chartInstance) return
 
-  // Fixed display grid: range morph only tweens y on shared indices (no length-bridge frame).
+  // Fixed display grid keeps metric morph on equal index counts.
   const display = normalizeSeriesForDisplay(timestamps, series, CHART_DISPLAY_POINTS)
   const prevTs = lastTimestamps
   const prevLen = prevTs.length
   const shift = detectTimestampShift(prevTs, timestamps)
   const sameModels = modelsKey(series) === lastModelsKey && lastModelsKey !== ''
-  const canSlide = shift > 0 && sameModels && prevLen > 0
-  const isFirstPaint = prevLen === 0 || chartInstance.data.datasets.length === 0 || lastSeriesRaw.length === 0
   const rangeChanged = lastPaintedRange !== '' && range !== lastPaintedRange
   const metricChanged = lastPaintedMetric !== '' && metric !== lastPaintedMetric
+  const canSlide = canLiveSlide({
+    rangeChanged,
+    shift,
+    sameModels,
+    prevLen,
+  })
+  const isFirstPaint = prevLen === 0 || chartInstance.data.datasets.length === 0 || lastSeriesRaw.length === 0
   const hasData = display.timestamps.length > 0 && display.series.length > 0
-  const canTransition = !isFirstPaint && !canSlide && hasData
+  const canTransition = !isFirstPaint && hasData
   const sameDsCount = chartInstance.data.datasets.length === display.series.length
 
   motion.resetTransform()
 
-  // Range path: prefer y-morph on fixed grid; fall back to freeze-frame if layer count changed.
-  // Invariant: never paint a resampled-old bridge frame (假折线).
+  // ALL range switches: freeze-frame crossfade (interval-agnostic, no 假折线).
+  // Why not morph-only: cross-interval + Top-N churn made morph/slide paths inconsistent
+  // (only 1h↔6h / 7d↔all looked fine). Snapshot treats every pair the same.
   if (canTransition && rangeChanged) {
     const ts = display.timestamps.slice()
     const ser = cloneSeries(display.series)
-    if (sameDsCount) {
-      motion.cancel(true)
+    motion.playSnapshotCrossfade(() => {
+      if (!chartInstance) return
       setYTickFormat(chartInstance, metric)
-      writeChartData(range, ts, ser, true)
-      chartInstance.update('morph' as 'none')
+      writeChartData(range, ts, ser, false)
+      chartInstance.update('none')
       commitPaintState(metric, range, timestamps, ser)
-    } else {
-      motion.playSnapshotCrossfade(() => {
-        if (!chartInstance) return
-        setYTickFormat(chartInstance, metric)
-        writeChartData(range, ts, ser, false)
-        chartInstance.update('none')
-        commitPaintState(metric, range, timestamps, ser)
-      })
-    }
+    })
     return
   }
 
   // Non-range paths: drop any overlay and keep stage solid.
   motion.cancel(true)
 
-  // USD↔Tokens only: y/color morph (Top-N may re-rank → bridge on fixed grid, not time-axis fake curve).
-  if (canTransition && metricChanged) {
+  // USD↔Tokens only: y/color morph (Top-N may re-rank on fixed grid).
+  if (canTransition && metricChanged && !canSlide) {
     if (lastPaintedMetric) setYTickFormat(chartInstance, lastPaintedMetric)
     if (sameDsCount) {
       const fromSeries = bridgeSeriesForMorph(lastSeriesRaw, display.series, CHART_DISPLAY_POINTS)
