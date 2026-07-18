@@ -12,9 +12,15 @@ export function useAuthenticatedScreenWakeLock(
   status: Readonly<Ref<AuthenticationStatus>>,
   wakeLock: ScreenWakeLock,
 ) {
+  let authenticatedIntent = false
   watch(status, (nextStatus) => {
-    if (nextStatus === 'authenticated') void wakeLock.start()
-    else void wakeLock.stop()
-  })
+    if (nextStatus === 'authenticated') {
+      authenticatedIntent = true
+      void wakeLock.start()
+    } else if (authenticatedIntent) {
+      authenticatedIntent = false
+      void wakeLock.stop()
+    }
+  }, { immediate: true })
   onScopeDispose(() => { void wakeLock.stop() })
 }

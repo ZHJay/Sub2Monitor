@@ -116,6 +116,35 @@ describe('createScreenWakeLock', () => {
     expect(wakeLock.request).toHaveBeenCalledTimes(1)
   })
 
+  it('does not release an acquired lock when authentication restarts during stop', async () => {
+    const page = new FakeVisibilityPage()
+    const sentinel = new FakeWakeLockSentinel()
+    const pending = deferred<WakeLockSentinelPort>()
+    const wakeLock: WakeLockPort = { request: vi.fn().mockReturnValue(pending.promise) }
+    const lifecycle = createScreenWakeLock(page, wakeLock)
+
+    const firstStart = lifecycle.start()
+    const stopping = lifecycle.stop()
+    const restarted = lifecycle.start()
+    pending.resolve(sentinel)
+    await Promise.all([firstStart, stopping, restarted])
+
+    expect(sentinel.release).not.toHaveBeenCalled()
+    expect(wakeLock.request).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not reject when the browser fails to release a sentinel', async () => {
+    const page = new FakeVisibilityPage()
+    const sentinel = new FakeWakeLockSentinel()
+    sentinel.release.mockRejectedValueOnce(new DOMException('failed', 'InvalidStateError'))
+    const wakeLock: WakeLockPort = { request: vi.fn().mockResolvedValue(sentinel) }
+    const lifecycle = createScreenWakeLock(page, wakeLock)
+
+    await lifecycle.start()
+
+    await expect(lifecycle.stop()).resolves.toBeUndefined()
+  })
+
   it('degrades without rejecting when Wake Lock is unavailable or denied', async () => {
     const page = new FakeVisibilityPage()
     const denied: WakeLockPort = {

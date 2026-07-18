@@ -1,62 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createRefreshDeadlineScheduler } from './refreshDeadlineScheduler'
 import {
-  createRefreshDeadlineScheduler,
-  type RefreshSchedulerEnvironment,
-  type RefreshSchedulerEventPort,
-  type RefreshSchedulerPagePort,
-} from './refreshDeadlineScheduler'
-
-class FakeEventPort extends EventTarget implements RefreshSchedulerEventPort {
-  emit(type: string) { this.dispatchEvent(new Event(type)) }
-}
-
-class FakePagePort extends FakeEventPort implements RefreshSchedulerPagePort {
-  visibilityState: DocumentVisibilityState = 'visible'
-
-  setVisibility(state: DocumentVisibilityState) {
-    this.visibilityState = state
-    this.emit('visibilitychange')
-  }
-}
-
-class FakeRefreshEnvironment implements RefreshSchedulerEnvironment {
-  readonly page = new FakePagePort()
-  readonly runtime = new FakeEventPort()
-  private nowMs = 0
-  private nextTimerId = 1
-  private timers = new Map<number, { dueMs: number; callback: () => void }>()
-
-  now = () => this.nowMs
-  setTimer = (callback: () => void, delayMs: number) => {
-    const id = this.nextTimerId++
-    this.timers.set(id, { dueMs: this.nowMs + delayMs, callback })
-    return id
-  }
-  clearTimer = (id: number) => { this.timers.delete(id) }
-
-  advance(ms: number, runTimers = true) {
-    this.nowMs += ms
-    if (!runTimers) return
-    const due = [...this.timers.entries()]
-      .filter(([, timer]) => timer.dueMs <= this.nowMs)
-      .sort((left, right) => left[1].dueMs - right[1].dueMs)
-    for (const [id, timer] of due) {
-      this.timers.delete(id)
-      timer.callback()
-    }
-  }
-}
-
-async function flushPromises() {
-  await Promise.resolve()
-  await Promise.resolve()
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((done) => { resolve = done })
-  return { promise, resolve }
-}
+  deferred,
+  FakeRefreshEnvironment,
+  flushPromises,
+} from './refreshDeadlineSchedulerTestSupport'
 
 describe('createRefreshDeadlineScheduler', () => {
   it('refreshes immediately and again at the 30 second deadline', async () => {
@@ -194,6 +142,44 @@ describe('createRefreshDeadlineScheduler', () => {
     expect(refresh).toHaveBeenCalledTimes(2)
 
     environment.advance(29_999)
+    expect(refresh).toHaveBeenCalledTimes(2)
+    environment.advance(1)
+    expect(refresh).toHaveBeenCalledTimes(3)
+  })
+
+  it('queues one catch-up when a refresh stays pending past its deadline', async () => {
+    const environment = new FakeRefreshEnvironment()
+    const first = deferred<void>()
+    const refresh = vi.fn()
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValue(undefined)
+    const scheduler = createRefreshDeadlineScheduler(refresh, environment)
+
+    scheduler.start()
+    environment.advance(60_000)
+    expect(refresh).toHaveBeenCalledTimes(1)
+
+    first.resolve()
+    await flushPromises()
+
+    expect(refresh).toHaveBeenCalledTimes(2)
+  })
+
+  it('preserves the absolute cadence after a delayed catch-up', async () => {
+    const environment = new FakeRefreshEnvironment()
+    const first = deferred<void>()
+    const refresh = vi.fn()
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValue(undefined)
+    const scheduler = createRefreshDeadlineScheduler(refresh, environment)
+
+    scheduler.start()
+    environment.advance(35_000)
+    first.resolve()
+    await flushPromises()
+    expect(refresh).toHaveBeenCalledTimes(2)
+
+    environment.advance(24_999)
     expect(refresh).toHaveBeenCalledTimes(2)
     environment.advance(1)
     expect(refresh).toHaveBeenCalledTimes(3)

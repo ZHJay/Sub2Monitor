@@ -44,6 +44,10 @@ export function createRefreshDeadlineScheduler(
     if (timer !== null) environment.clearTimer(timer)
     timer = null
     advanceDeadlinePast(environment.now())
+    timer = environment.setTimer(
+      () => { void execute() },
+      nextDeadlineMs - environment.now(),
+    )
     try {
       inFlight = refresh()
       await inFlight
@@ -55,14 +59,8 @@ export function createRefreshDeadlineScheduler(
     if (!running) return
     if (rerunRequested) {
       rerunRequested = false
-      nextDeadlineMs = environment.now()
       return execute()
     }
-    if (nextDeadlineMs <= environment.now()) advanceDeadlinePast(environment.now())
-    timer = environment.setTimer(
-      () => { void execute() },
-      nextDeadlineMs - environment.now(),
-    )
   }
 
   function handleRecovery() {

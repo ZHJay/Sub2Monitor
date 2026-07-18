@@ -66,10 +66,11 @@ export function createScreenWakeLock(
       active = false
       page.removeEventListener('visibilitychange', handleVisibilityChange)
       await requestInFlight
+      if (active) return
       const current = sentinel
       sentinel = null
       current?.removeEventListener('release', handleRelease)
-      await current?.release()
+      if (current) await current.release().catch(() => undefined)
     },
   }
 }

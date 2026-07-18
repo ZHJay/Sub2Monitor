@@ -32,6 +32,8 @@ describe('useAuthenticatedScreenWakeLock', () => {
     }
     const scope = effectScope()
     scope.run(() => useAuthenticatedScreenWakeLock(status, wakeLock))
+    await nextTick()
+    expect(wakeLock.start).toHaveBeenCalledOnce()
 
     scope.stop()
     await nextTick()
