@@ -106,6 +106,9 @@ defineExpose({ replay })
 <style scoped>
 .rolling-number {
   display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   align-items: baseline;
   gap: 0.04em;
   font-variant-numeric: tabular-nums;

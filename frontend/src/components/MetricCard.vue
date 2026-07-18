@@ -1,9 +1,13 @@
 <template>
-  <div class="rounded-2xl border border-apple-line bg-apple-surface p-5 shadow-glass backdrop-blur-xl transition-colors hover:border-apple-line-strong">
+  <div class="min-w-0 rounded-2xl border border-apple-line bg-apple-surface p-5 shadow-glass backdrop-blur-xl transition-colors hover:border-apple-line-strong">
     <div class="text-[11px] uppercase tracking-[0.06em] text-apple-muted">{{ title }}</div>
-    <div class="mt-2 text-[28px] font-semibold tracking-tight text-apple-text">
-      <RollingNumber :value="formattedValue" />
-      <span v-if="unit" class="ml-1 text-base font-medium text-apple-muted">{{ unit }}</span>
+    <div
+      class="mt-2 flex min-w-0 max-w-full items-baseline overflow-hidden font-semibold tracking-tight text-apple-text"
+      :style="{ fontSize: metricValueFontSize(formattedValue) }"
+      :title="formattedValue"
+    >
+      <RollingNumber class="min-w-0 max-w-full shrink overflow-hidden" :value="formattedValue" />
+      <span v-if="unit" class="ml-1 shrink-0 text-base font-medium text-apple-muted">{{ unit }}</span>
     </div>
   </div>
 </template>
@@ -12,6 +16,7 @@
 // Layer: L1 积木层 — 指标卡；刷新时由 RollingNumber 做位级差分动画。
 import { computed } from 'vue'
 import RollingNumber from './RollingNumber.vue'
+import { metricValueFontSize } from '../metrics/metricValuePresentation'
 
 interface Props {
   title: string
