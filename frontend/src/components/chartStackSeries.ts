@@ -25,13 +25,18 @@ const STACK_COLORS_BOTTOM_TO_TOP = [
 
 export const STACK_ID = 'models'
 export const SLIDE_MS = 480
-/** Shared morph duration for metric + time-range shape/color tween. */
+/** Metric-only morph duration (y stretch/shrink + color). Range switches do not use morph. */
 export const MORPH_MS = 560
 export const MORPH_EASING = 'easeInOutCubic'
 /**
- * Fixed display resolution so 1h/6h/24h always share the same point count.
- * Why: Chart.js y-morph only works cleanly when index counts match; range
- * switches then animate without a length-bridge "fake curve" pre-paint.
+ * Range switch: fade out → write real data → fade in.
+ * Why: length-bridge / fixed-grid morph paints a resampled old polyline first (假折线).
+ */
+export const CROSSFADE_MS = 160
+/**
+ * Optional fixed grid for tests / experimental morph.
+ * Invariant: production range switches must NOT resample onto this grid to morph;
+ * they use crossfade with the API's real bucket counts.
  */
 export const CHART_DISPLAY_POINTS = 48
 
@@ -124,8 +129,9 @@ export function resampleNumbers(values: number[], targetLen: number): number[] {
 
 /**
  * Align previous raw series onto the next model order + point count.
- * Why: USD/token re-ranks Top models; range switches change membership.
+ * Why: USD/token re-ranks Top models on the same time grid.
  * Missing models start at 0 so morph still has a continuous stack.
+ * Risk: do not use this to fake a range switch (paints 假折线).
  */
 export function bridgeSeriesForMorph(
   previous: ModelSeries[],
@@ -155,8 +161,10 @@ export function resampleTimestamps(timestamps: string[], targetLen: number): str
 }
 
 /**
- * Normalize any API window onto CHART_DISPLAY_POINTS for edge-to-edge morph.
+ * Normalize any API window onto a fixed point count (tests / experimental).
  * Contract: output series values are still raw (non-cumulative); buildDatasets stacks them.
+ * Invariant: production TimeSeriesChart range switches paint real bucket counts via crossfade,
+ * not this resampled grid.
  */
 export function normalizeSeriesForDisplay(
   timestamps: string[],
