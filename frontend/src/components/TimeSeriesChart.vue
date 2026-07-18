@@ -23,7 +23,13 @@
     </div>
 
     <div class="relative h-72 overflow-hidden">
-      <div ref="chartStage" class="absolute inset-0" style="opacity: 1">
+      <!--
+        Why: do NOT bind style.opacity here.
+        Vue FULL_PROPS re-applies static style on every re-render (pending/legend),
+        which overwrites WAAPI opacity mid range-fade → hard cut, no smooth anim.
+        Opacity is owned exclusively by chartStageMotion.
+      -->
+      <div ref="chartStage" class="absolute inset-0">
         <canvas ref="chartCanvas" role="img" :aria-label="chartAriaLabel"></canvas>
       </div>
       <div

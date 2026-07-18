@@ -90,14 +90,28 @@ export function createStageMotion(opts: {
       return
     }
 
+    // Invariant: opacity is JS-owned only (no Vue :style). CSS transition on
+    // opacity would fight WAAPI; clear it before each leg.
+    stage.style.transition = 'none'
     stage.style.transform = 'translateX(0)'
     void animateOpacity(stage, 1, 0, opts.crossfadeMs).then(() => {
       if (gen !== fadeGen) return
+      const el = opts.getStage()
+      if (!el) {
+        apply()
+        return
+      }
+      // Hold at 0 across apply() + Vue flush so legend/pending re-render cannot flash.
+      el.style.opacity = '0'
       apply()
-      // Next frame so Chart.js can paint before fade-in.
+      // Double rAF: Chart paints + Vue patches, then fade in from forced 0.
       requestAnimationFrame(() => {
-        if (gen !== fadeGen) return
-        void animateOpacity(stage, 0, 1, opts.crossfadeMs)
+        requestAnimationFrame(() => {
+          if (gen !== fadeGen) return
+          const host = opts.getStage() || el
+          host.style.opacity = '0'
+          void animateOpacity(host, 0, 1, opts.crossfadeMs)
+        })
       })
     })
   }
