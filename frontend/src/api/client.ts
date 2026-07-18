@@ -29,6 +29,7 @@ export interface MetricsSummaryResponse {
   totalCost: number
   hourlyCost: number
   totalTokens: number
+  cacheHitRate: number
   requests: { total: number; success: number; failed: number }
   includeCache?: boolean
   userEmail?: string
