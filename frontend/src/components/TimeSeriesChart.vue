@@ -22,9 +22,9 @@
       </div>
     </div>
 
-    <!-- overflow hidden clips slide; stage opacity used for range crossfade -->
+    <!-- overflow hidden clips slide; stage opacity is driven inline for range crossfade -->
     <div class="relative h-72 overflow-hidden">
-      <div ref="chartStage" class="absolute inset-0 will-change-transform opacity-100">
+      <div ref="chartStage" class="absolute inset-0" style="opacity: 1; will-change: opacity, transform">
         <canvas ref="chartCanvas" role="img" :aria-label="chartAriaLabel"></canvas>
       </div>
       <div
@@ -162,10 +162,42 @@ function resetStageOpacity() {
   el.style.opacity = '1'
 }
 
-function cancelCrossfade() {
+/** Abort in-flight fade; optionally snap visible (metric/slide paths need a solid stage). */
+function cancelCrossfade(resetOpacity = true) {
   fadeGen += 1
   clearFadeTimer()
-  resetStageOpacity()
+  if (resetOpacity) resetStageOpacity()
+}
+
+function stageOpacity(): number {
+  const el = chartStage.value
+  if (!el) return 1
+  const n = Number.parseFloat(getComputedStyle(el).opacity || '1')
+  return Number.isFinite(n) ? n : 1
+}
+
+/** Force the browser to commit current inline styles before starting a transition. */
+function commitStageStyle(el: HTMLElement) {
+  void el.offsetWidth
+}
+
+/**
+ * Begin range fade-out as soon as the pill is clicked (network still in flight).
+ * Why: waiting until data arrives made the swap feel like a hard cut.
+ */
+function beginRangeFadeOut() {
+  const el = chartStage.value
+  if (!el) return
+  const gen = ++fadeGen
+  clearFadeTimer()
+  el.style.transition = 'none'
+  el.style.opacity = '1'
+  commitStageStyle(el)
+  requestAnimationFrame(() => {
+    if (gen !== fadeGen || !chartStage.value) return
+    chartStage.value.style.transition = `opacity ${CROSSFADE_MS}ms ease`
+    chartStage.value.style.opacity = '0'
+  })
 }
 
 /** After data already matches new window, offset stage right then ease back to 0 → content slides left. */
@@ -194,8 +226,10 @@ function playSlideLeft(shiftCount: number, prevLen: number) {
 }
 
 /**
- * Range switch: fade out → swap real data → fade in.
- * Why not length-bridge / fixed-grid morph: resampling old polyline paints a fake curve first.
+ * Range switch: fade out → write real data → fade in.
+ * Invariant: never paint a resampled old polyline on the new axis (假折线).
+ * Why double-rAF / reflow: setting transition+opacity in the same frame after
+ * `transition: none` is coalesced by the browser into a hard cut (no animation).
  */
 function playCrossfadeSwap(apply: () => void) {
   const el = chartStage.value
@@ -205,18 +239,48 @@ function playCrossfadeSwap(apply: () => void) {
     return
   }
   clearFadeTimer()
-  el.style.transition = `opacity ${CROSSFADE_MS}ms ease`
-  el.style.opacity = '0'
-  fadeTimer = window.setTimeout(() => {
+
+  const fadeIn = () => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (gen !== fadeGen || !chartStage.value) return
+        const stage = chartStage.value
+        stage.style.transition = `opacity ${CROSSFADE_MS}ms ease`
+        stage.style.opacity = '1'
+      })
+    })
+  }
+
+  const swapThenIn = () => {
     if (gen !== fadeGen) return
     apply()
-    requestAnimationFrame(() => {
-      if (gen !== fadeGen || !chartStage.value) return
-      chartStage.value.style.transition = `opacity ${CROSSFADE_MS}ms ease`
-      chartStage.value.style.opacity = '1'
-    })
+    fadeIn()
     fadeTimer = null
-  }, CROSSFADE_MS)
+  }
+
+  // Already hidden (early fade-out on pill click) → swap under cover, then fade in.
+  if (stageOpacity() < 0.08) {
+    swapThenIn()
+    return
+  }
+
+  // Mid early-fade: keep going to 0 without snapping back to full opacity (that looked like no animation / a flash).
+  if (stageOpacity() < 0.99) {
+    el.style.transition = `opacity ${CROSSFADE_MS}ms ease`
+    el.style.opacity = '0'
+    fadeTimer = window.setTimeout(swapThenIn, CROSSFADE_MS)
+    return
+  }
+
+  el.style.transition = 'none'
+  el.style.opacity = '1'
+  commitStageStyle(el)
+  requestAnimationFrame(() => {
+    if (gen !== fadeGen || !chartStage.value) return
+    chartStage.value.style.transition = `opacity ${CROSSFADE_MS}ms ease`
+    chartStage.value.style.opacity = '0'
+    fadeTimer = window.setTimeout(swapThenIn, CROSSFADE_MS)
+  })
 }
 
 function createChart() {
@@ -248,7 +312,6 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   if (!chartInstance) createChart()
   if (!chartInstance) return
 
-  cancelCrossfade()
   const prevTs = lastTimestamps
   const prevLen = prevTs.length
   const shift = detectTimestampShift(prevTs, timestamps)
@@ -262,6 +325,7 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   resetStageTransform()
 
   // Range always wins: 24h→6h etc. never morph / never paint resampled old shape.
+  // Do NOT cancelCrossfade(reset) here — that snaps opacity to 1 and kills the fade.
   if (canTransition && rangeChanged) {
     const ts = timestamps.slice()
     const ser = cloneSeries(series)
@@ -274,6 +338,9 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
     })
     return
   }
+
+  // Non-range paths need a fully visible stage.
+  cancelCrossfade(true)
 
   // USD↔Tokens only: y/color morph on same bucket grid.
   if (canTransition && metricChanged) {
@@ -305,6 +372,13 @@ function onControlChange() {
   pending.value = true
   pendingRange = props.timeRange
   pendingMetric = props.metric
+  // Range pill: start fade-out immediately so the wait is not a static hard cut.
+  if (lastPaintedRange !== '' && props.timeRange !== lastPaintedRange) {
+    beginRangeFadeOut()
+  } else if (lastPaintedMetric !== '' && props.metric !== lastPaintedMetric) {
+    // Metric morph keeps the stage visible.
+    cancelCrossfade(true)
+  }
 }
 
 function onDataChange() {

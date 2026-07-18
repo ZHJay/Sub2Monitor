@@ -29,10 +29,11 @@ export const SLIDE_MS = 480
 export const MORPH_MS = 560
 export const MORPH_EASING = 'easeInOutCubic'
 /**
- * Range switch: fade out → write real data → fade in.
+ * Range switch: fade out → write real data → fade in (each leg).
  * Why: length-bridge / fixed-grid morph paints a resampled old polyline first (假折线).
+ * ~280ms keeps the swap readable vs a hard cut; still shorter than metric morph.
  */
-export const CROSSFADE_MS = 160
+export const CROSSFADE_MS = 280
 /**
  * Optional fixed grid for tests / experimental morph.
  * Invariant: production range switches must NOT resample onto this grid to morph;
