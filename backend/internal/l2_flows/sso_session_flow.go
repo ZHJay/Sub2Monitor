@@ -2,6 +2,7 @@ package l2_flows
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,17 +41,17 @@ func (flow *SSOFlow) IssueChallenge() (string, error) {
 	return state, nil
 }
 
-func (flow *SSOFlow) Exchange(cookieState, requestState, upstreamToken string) (string, l0_axioms.AuthorizationStatus) {
+func (flow *SSOFlow) Exchange(cookieState, requestState, upstreamToken, userAgent string) (string, l0_axioms.AuthorizationStatus) {
 	if !l1_blocks.IsExactBase64URL(cookieState, l0_axioms.ChallengeStateBytes) ||
 		!l1_blocks.IsExactBase64URL(requestState, l0_axioms.ChallengeStateBytes) ||
-		!flow.states.ConsumeMatch(cookieState, requestState) || upstreamToken == "" {
+		!flow.states.ConsumeMatch(cookieState, requestState) || upstreamToken == "" || strings.TrimSpace(userAgent) == "" {
 		return "", l0_axioms.AuthorizationUnauthorized
 	}
-	if status := flow.identity.Check(context.Background(), upstreamToken); status != l0_axioms.AuthorizationAllowed {
+	if status := flow.identity.Check(context.Background(), upstreamToken, userAgent); status != l0_axioms.AuthorizationAllowed {
 		return "", status
 	}
 	sessionID, err := l1_blocks.NewRandomBase64URL(l0_axioms.SessionIDBytes)
-	if err != nil || !flow.sessions.Create(sessionID, upstreamToken) {
+	if err != nil || !flow.sessions.Create(sessionID, upstreamToken, userAgent) {
 		return "", l0_axioms.AuthorizationUnavailable
 	}
 	flow.rememberAllowed(sessionID)
@@ -63,7 +64,7 @@ func (flow *SSOFlow) Authorize(sessionID string) l0_axioms.AuthorizationStatus {
 	if !l1_blocks.IsExactBase64URL(sessionID, l0_axioms.SessionIDBytes) {
 		return l0_axioms.AuthorizationUnauthorized
 	}
-	token, exists := flow.sessions.Lookup(sessionID)
+	token, userAgent, exists := flow.sessions.Lookup(sessionID)
 	if !exists {
 		flow.forgetAllowed(sessionID)
 		return l0_axioms.AuthorizationUnauthorized
@@ -71,7 +72,7 @@ func (flow *SSOFlow) Authorize(sessionID string) l0_axioms.AuthorizationStatus {
 	if flow.stillAllowed(sessionID) {
 		return l0_axioms.AuthorizationAllowed
 	}
-	status := flow.identity.Check(context.Background(), token)
+	status := flow.identity.Check(context.Background(), token, userAgent)
 	switch status {
 	case l0_axioms.AuthorizationAllowed:
 		flow.rememberAllowed(sessionID)

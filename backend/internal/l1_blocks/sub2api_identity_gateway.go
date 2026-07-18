@@ -10,15 +10,15 @@ import (
 	"github.com/ZHJay/Sub2Monitor/backend/internal/l0_axioms"
 )
 
-const sub2APIIdentityURL = "http://sub2api:8080/api/v1/auth/me"
+const sub2APIIdentityURL = "https://api4kimi8.org/api/v1/auth/me"
 const maxIdentityResponseBytes = 64 << 10
 
 // IdentityGateway is the stable L1 contract consumed by the session flow.
 type IdentityGateway interface {
-	Check(context.Context, string) l0_axioms.AuthorizationStatus
+	Check(context.Context, string, string) l0_axioms.AuthorizationStatus
 }
 
-// Sub2APIIdentityGateway queries the fixed private Sub2API authority only.
+// Sub2APIIdentityGateway queries the fixed Sub2API authority through the host reverse proxy.
 type Sub2APIIdentityGateway struct {
 	client *http.Client
 }
@@ -34,12 +34,13 @@ func NewSub2APIIdentityGateway(client *http.Client) *Sub2APIIdentityGateway {
 	return &Sub2APIIdentityGateway{client: &clientCopy}
 }
 
-func (gateway *Sub2APIIdentityGateway) Check(ctx context.Context, token string) l0_axioms.AuthorizationStatus {
+func (gateway *Sub2APIIdentityGateway) Check(ctx context.Context, token, userAgent string) l0_axioms.AuthorizationStatus {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sub2APIIdentityURL, nil)
 	if err != nil {
 		return l0_axioms.AuthorizationUnavailable
 	}
 	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("User-Agent", userAgent)
 	response, err := gateway.client.Do(request)
 	if err != nil {
 		return l0_axioms.AuthorizationUnavailable

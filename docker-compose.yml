@@ -9,6 +9,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8090:8090"
+    extra_hosts:
+      - "api4kimi8.org:host-gateway"
     environment:
       - DB_HOST=sub2api-postgres
       - DB_PORT=5432

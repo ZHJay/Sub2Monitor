@@ -21,7 +21,7 @@ const (
 )
 
 const bridgeHTML = `<!doctype html><html><head><meta charset="utf-8"><title>Sub2Monitor SSO</title></head><body><script src="/_monitor-sso/bridge.js" defer></script></body></html>`
-const bridgeJavaScript = `(function(){'use strict';const monitorOrigin='https://monitor.api4kimi8.org';const state=new URLSearchParams(location.search).get('state')||'';const token=localStorage.getItem('auth_token');const finish=()=>location.replace(monitorOrigin+'/?sso=complete');if(!token||!state){finish();return}fetch(monitorOrigin+'/api/auth/sso/exchange',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:state,token:token})}).finally(finish);})();`
+const bridgeJavaScript = `(async function(){'use strict';const monitorOrigin='https://monitor.api4kimi8.org';const state=new URLSearchParams(location.search).get('state')||'';const token=localStorage.getItem('auth_token');const finish=(result)=>location.replace(monitorOrigin+'/?sso='+result);if(!token||!state){finish('login');return}try{const exchangeResponse=await fetch(monitorOrigin+'/api/auth/sso/exchange',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:state,token:token})});finish(exchangeResponse.ok?'complete':(exchangeResponse.status===401||exchangeResponse.status===403?'login':'unavailable'))}catch(error){finish('unavailable')}})();`
 
 type exchangeRequest struct {
 	State string `json:"state"`
@@ -73,7 +73,7 @@ func (handler *APIHandler) SSOExchange(c *gin.Context) {
 	if cookie != nil {
 		cookieState = cookie.Value
 	}
-	sessionID, status := handler.SSOFlow.Exchange(cookieState, request.State, request.Token)
+	sessionID, status := handler.SSOFlow.Exchange(cookieState, request.State, request.Token, c.Request.UserAgent())
 	if status != l0_axioms.AuthorizationAllowed {
 		handler.writeAuthorizationFailure(c, status, false)
 		return

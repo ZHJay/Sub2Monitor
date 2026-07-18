@@ -18,7 +18,7 @@ import (
 
 type alwaysAdminGateway struct{}
 
-func (alwaysAdminGateway) Check(context.Context, string) l0_axioms.AuthorizationStatus {
+func (alwaysAdminGateway) Check(context.Context, string, string) l0_axioms.AuthorizationStatus {
 	return l0_axioms.AuthorizationAllowed
 }
 
@@ -52,6 +52,7 @@ func TestSSOChallengeExchangeSetsHostOnlySessionAndConsumesState(t *testing.T) {
 
 	exchangeRequest := httptest.NewRequest(http.MethodPost, "/api/auth/sso/exchange", strings.NewReader(`{"state":"`+challenge.State+`","token":"upstream-token"}`))
 	exchangeRequest.Header.Set("Content-Type", "application/json")
+	exchangeRequest.Header.Set("User-Agent", "Browser User Agent")
 	exchangeRequest.AddCookie(stateCookie)
 	exchangeResponse := httptest.NewRecorder()
 	router.ServeHTTP(exchangeResponse, exchangeRequest)
@@ -86,6 +87,7 @@ func TestSSOExchangeAllowsOnlyAPIBridgeOriginAndSessionStatus(t *testing.T) {
 	exchange := httptest.NewRequest(http.MethodPost, "/api/auth/sso/exchange", strings.NewReader(`{"state":"`+challenge.State+`","token":"upstream-token"}`))
 	exchange.Header.Set("Content-Type", "application/json")
 	exchange.Header.Set("Origin", apiOrigin)
+	exchange.Header.Set("User-Agent", "Browser User Agent")
 	exchange.AddCookie(challengeResponse.Result().Cookies()[0])
 	exchangeResponse := httptest.NewRecorder()
 	router.ServeHTTP(exchangeResponse, exchange)
@@ -102,7 +104,7 @@ func TestSSOExchangeAllowsOnlyAPIBridgeOriginAndSessionStatus(t *testing.T) {
 	}
 }
 
-func TestSSOBridgeRejectsUnexpectedHostAndDoesNotExposeToken(t *testing.T) {
+func TestSSOBridgeRejectsUnexpectedHostAndExchangesCurrentAccessToken(t *testing.T) {
 	router := newSSOTestRouter()
 	request := httptest.NewRequest(http.MethodGet, "/internal/sso/bridge.js", nil)
 	request.Host = "monitor.api4kimi8.org"
@@ -112,11 +114,28 @@ func TestSSOBridgeRejectsUnexpectedHostAndDoesNotExposeToken(t *testing.T) {
 		t.Fatalf("unexpected host status = %d", response.Code)
 	}
 
+	pageRequest := httptest.NewRequest(http.MethodGet, "/internal/sso/bridge", nil)
+	pageRequest.Host = "api4kimi8.org"
+	pageResponse := httptest.NewRecorder()
+	router.ServeHTTP(pageResponse, pageRequest)
+	wantCSP := "default-src 'none'; script-src 'self'; connect-src https://monitor.api4kimi8.org; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+	if pageResponse.Code != http.StatusOK || pageResponse.Header().Get("Content-Security-Policy") != wantCSP {
+		t.Fatalf("unexpected bridge page: status=%d csp=%q", pageResponse.Code, pageResponse.Header().Get("Content-Security-Policy"))
+	}
+
 	request = httptest.NewRequest(http.MethodGet, "/internal/sso/bridge.js", nil)
 	request.Host = "api4kimi8.org"
 	response = httptest.NewRecorder()
 	router.ServeHTTP(response, request)
-	if response.Code != http.StatusOK || strings.Contains(response.Body.String(), "refresh_token") || response.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("bridge response is unsafe: %d %q", response.Code, response.Body.String())
+	script := response.Body.String()
+	if response.Code != http.StatusOK ||
+		!strings.Contains(script, "localStorage.getItem('auth_token')") ||
+		strings.Contains(script, "refresh_token") ||
+		strings.Contains(script, "/api/v1/auth/refresh") ||
+		!strings.Contains(script, "JSON.stringify({state:state,token:token})") ||
+		!strings.Contains(script, "finish(exchangeResponse.ok?'complete':(exchangeResponse.status===401||exchangeResponse.status===403?'login':'unavailable'))") ||
+		!strings.Contains(script, "catch(error){finish('unavailable')}") ||
+		response.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("unexpected bridge response: %d %q", response.Code, response.Body.String())
 	}
 }

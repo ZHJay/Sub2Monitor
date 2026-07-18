@@ -12,17 +12,19 @@ import (
 
 type fakeIdentityGateway struct{ status l0_axioms.AuthorizationStatus }
 
-func (gateway fakeIdentityGateway) Check(context.Context, string) l0_axioms.AuthorizationStatus {
+func (gateway fakeIdentityGateway) Check(context.Context, string, string) l0_axioms.AuthorizationStatus {
 	return gateway.status
 }
 
 type countingGateway struct {
-	status l0_axioms.AuthorizationStatus
-	calls  atomic.Int32
+	status        l0_axioms.AuthorizationStatus
+	calls         atomic.Int32
+	lastUserAgent string
 }
 
-func (gateway *countingGateway) Check(context.Context, string) l0_axioms.AuthorizationStatus {
+func (gateway *countingGateway) Check(_ context.Context, _, userAgent string) l0_axioms.AuthorizationStatus {
 	gateway.calls.Add(1)
+	gateway.lastUserAgent = userAgent
 	return gateway.status
 }
 
@@ -39,7 +41,7 @@ func TestSSOFlowCreatesSessionOnlyForActiveAdminAndDeletesRevokedSession(t *test
 	if err != nil {
 		t.Fatalf("IssueChallenge() error = %v", err)
 	}
-	sessionID, status := flow.Exchange(state, state, "upstream-token")
+	sessionID, status := flow.Exchange(state, state, "upstream-token", "Browser User Agent")
 	if status != l0_axioms.AuthorizationAllowed || sessionID == "" {
 		t.Fatalf("Exchange() = (%q, %q)", sessionID, status)
 	}
@@ -77,7 +79,7 @@ func TestSSOFlowCachesSuccessfulIdentityRecheck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("IssueChallenge() error = %v", err)
 	}
-	sessionID, status := flow.Exchange(state, state, "upstream-token")
+	sessionID, status := flow.Exchange(state, state, "upstream-token", "Browser User Agent")
 	if status != l0_axioms.AuthorizationAllowed {
 		t.Fatalf("Exchange() status = %q", status)
 	}
@@ -100,6 +102,9 @@ func TestSSOFlowCachesSuccessfulIdentityRecheck(t *testing.T) {
 	if calls := gateway.calls.Load(); calls != 2 {
 		t.Fatalf("identity checks after TTL = %d, want 2", calls)
 	}
+	if gateway.lastUserAgent != "Browser User Agent" {
+		t.Fatalf("recheck User-Agent = %q", gateway.lastUserAgent)
+	}
 }
 
 func TestSSOFlowUnavailableDoesNotDeleteSession(t *testing.T) {
@@ -112,7 +117,7 @@ func TestSSOFlowUnavailableDoesNotDeleteSession(t *testing.T) {
 	flow.now = func() time.Time { return now }
 
 	state, _ := flow.IssueChallenge()
-	sessionID, status := flow.Exchange(state, state, "upstream-token")
+	sessionID, status := flow.Exchange(state, state, "upstream-token", "Browser User Agent")
 	if status != l0_axioms.AuthorizationAllowed {
 		t.Fatalf("Exchange() = %q", status)
 	}

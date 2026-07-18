@@ -6,7 +6,7 @@ Monitor uses a short-lived, server-side session to query Sub2API usage metrics. 
 
 1. The Monitor frontend requests a one-time SSO challenge.
 2. A same-origin Bridge at `api4kimi8.org` reads the existing Sub2API access token and transfers it only in memory through a fixed-origin `postMessage`.
-3. Monitor exchanges it once against the Docker-private `http://sub2api:8080/api/v1/auth/me` authority.
+3. Monitor exchanges it against `https://api4kimi8.org/api/v1/auth/me` through the host reverse proxy while preserving the browser User-Agent required by Sub2API session binding.
 4. Only an `active` user with role `admin` receives a 15-minute `__Host-` HttpOnly session. Every metric request rechecks `/auth/me`.
 
 `/api/auth/login` and `/api/auth/verify` intentionally do not exist.

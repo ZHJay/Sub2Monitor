@@ -16,9 +16,33 @@ func (transport identityRoundTripper) RoundTrip(request *http.Request) (*http.Re
 	return transport(request)
 }
 
-func TestSub2APIIdentityGatewayChecksOnlyFixedPrivateAuthority(t *testing.T) {
+func TestSub2APIIdentityGatewayPreservesBrowserSessionBindingThroughReverseProxy(t *testing.T) {
 	gateway := NewSub2APIIdentityGateway(&http.Client{Transport: identityRoundTripper(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() != "http://sub2api:8080/api/v1/auth/me" {
+		if request.URL.String() != "https://api4kimi8.org/api/v1/auth/me" {
+			t.Fatalf("URL = %q", request.URL.String())
+		}
+		if request.Header.Get("Authorization") != "Bearer upstream-token" {
+			t.Fatalf("Authorization = %q", request.Header.Get("Authorization"))
+		}
+		if request.UserAgent() != "Browser User Agent" {
+			t.Fatalf("User-Agent = %q", request.UserAgent())
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"code":0,"data":{"role":"admin","status":"active"}}`)), Header: make(http.Header)}, nil
+	})})
+	checker, ok := any(gateway).(interface {
+		Check(context.Context, string, string) l0_axioms.AuthorizationStatus
+	})
+	if !ok {
+		t.Fatal("identity gateway cannot preserve the browser session binding")
+	}
+	if got := checker.Check(context.Background(), "upstream-token", "Browser User Agent"); got != l0_axioms.AuthorizationAllowed {
+		t.Fatalf("Check() = %q, want allowed", got)
+	}
+}
+
+func TestSub2APIIdentityGatewayChecksOnlyFixedAuthority(t *testing.T) {
+	gateway := NewSub2APIIdentityGateway(&http.Client{Transport: identityRoundTripper(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() != "https://api4kimi8.org/api/v1/auth/me" {
 			t.Fatalf("URL = %q", request.URL.String())
 		}
 		if request.Header.Get("Authorization") != "Bearer upstream-token" {
@@ -27,7 +51,7 @@ func TestSub2APIIdentityGatewayChecksOnlyFixedPrivateAuthority(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"code":0,"data":{"role":"admin","status":"active"}}`)), Header: make(http.Header)}, nil
 	})})
 
-	if got := gateway.Check(context.Background(), "upstream-token"); got != l0_axioms.AuthorizationAllowed {
+	if got := gateway.Check(context.Background(), "upstream-token", "Browser User Agent"); got != l0_axioms.AuthorizationAllowed {
 		t.Fatalf("Check() = %q, want allowed", got)
 	}
 }
@@ -47,7 +71,7 @@ func TestSub2APIIdentityGatewayNormalizesUnauthorizedAndMalformedUpstream(t *tes
 			gateway := NewSub2APIIdentityGateway(&http.Client{Transport: identityRoundTripper(func(*http.Request) (*http.Response, error) {
 				return &http.Response{StatusCode: testCase.status, Body: io.NopCloser(strings.NewReader(testCase.body)), Header: make(http.Header)}, nil
 			})})
-			if got := gateway.Check(context.Background(), "token"); got != testCase.want {
+			if got := gateway.Check(context.Background(), "token", "Browser User Agent"); got != testCase.want {
 				t.Fatalf("Check() = %q, want %q", got, testCase.want)
 			}
 		})

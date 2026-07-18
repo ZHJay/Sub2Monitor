@@ -23,19 +23,19 @@ func TestSessionStoreExpiresWithoutSlidingAndRejects129thSession(t *testing.T) {
 	now := time.Date(2026, 7, 16, 0, 0, 0, 0, time.UTC)
 	store := NewSessionStore(func() time.Time { return now })
 	for index := 0; index < 128; index++ {
-		if !store.Create("session-"+string(rune(index+1)), "token") {
+		if !store.Create("session-"+string(rune(index+1)), "token", "Browser User Agent") {
 			t.Fatalf("session %d was unexpectedly rejected", index)
 		}
 	}
-	if store.Create("overflow", "token") {
+	if store.Create("overflow", "token", "Browser User Agent") {
 		t.Fatal("129th active session was accepted")
 	}
 
 	now = now.Add(16 * time.Minute)
-	if _, ok := store.Lookup("session-\x01"); ok {
+	if _, _, ok := store.Lookup("session-\x01"); ok {
 		t.Fatal("expired session remained valid")
 	}
-	if !store.Create("replacement", "token") {
+	if !store.Create("replacement", "token", "Browser User Agent") {
 		t.Fatal("expired entries were not reclaimed")
 	}
 }

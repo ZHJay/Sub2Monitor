@@ -16,7 +16,7 @@
             前往 Sub2API 登录
           </a>
           <button
-            @click="startAuthentication"
+            @click="startAuthentication()"
             class="mt-3 w-full rounded-full border border-apple-line-strong px-4 py-2.5 text-sm text-apple-text transition-colors hover:bg-apple-surface-strong"
           >
             重试
@@ -54,13 +54,19 @@ const message = computed(() => status.value === 'unavailable'
   ? '身份服务暂时不可用，请稍后重试。'
   : '请先在 Sub2API 登录管理员账户，再返回此页面。')
 
-async function startAuthentication() {
+async function startAuthentication(allowRedirect = true) {
   status.value = 'checking'
   try {
     await getSSOSession()
     status.value = 'authenticated'
   } catch (error: any) {
     if (error.response?.status === 503) { status.value = 'unavailable'; return }
+    if (!allowRedirect) {
+      status.value = new URLSearchParams(window.location.search).get('sso') === 'unavailable'
+        ? 'unavailable'
+        : 'anonymous'
+      return
+    }
     try {
       startTopLevelSSO(await createSSOChallenge())
     } catch (challengeError: any) {
@@ -69,6 +75,9 @@ async function startAuthentication() {
   }
 }
 function authenticationLost() { status.value = 'anonymous' }
-onMounted(() => { window.addEventListener('apimonitor:auth-lost', authenticationLost); startAuthentication() })
+onMounted(() => {
+  window.addEventListener('apimonitor:auth-lost', authenticationLost)
+  startAuthentication(!new URLSearchParams(window.location.search).has('sso'))
+})
 onBeforeUnmount(() => window.removeEventListener('apimonitor:auth-lost', authenticationLost))
 </script>
