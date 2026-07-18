@@ -2,36 +2,26 @@
 // Boundary: stage/canvas motion only; caller owns Chart data writes.
 
 export type StageMotionHandle = {
-  /** Invalidate in-flight fades and remove snapshot overlays. */
-  cancel: (resetOpacity?: boolean) => void
-  /** Freeze current chart as overlay, apply swap underneath, fade overlay out. */
-  playSnapshotCrossfade: (apply: () => void) => void
+  cancel: () => void
+  /** Fade host out → apply() → fade host in via Web Animations API. */
+  playFadeSwap: (apply: () => void) => void
   resetTransform: () => void
   resetOpacity: () => void
   playSlideLeft: (shiftPx: number, durationMs: number) => void
 }
 
 /**
- * Create motion helpers bound to a chart stage host.
- * Why snapshot crossfade: live canvas CSS opacity and Chart.js morph are
- * unreliable across range/interval changes; a freeze-frame div always animates.
+ * Motion helpers.
+ * Why WAAPI on the stage element: CSS transition + snapshot overlays kept
+ * failing silently in production; Element.animate is explicit and visible.
  */
 export function createStageMotion(opts: {
   getStage: () => HTMLElement | null
-  getChartImage: () => string | null
   crossfadeMs: number
 }): StageMotionHandle {
   let fadeGen = 0
-  let fadeTimer: number | null = null
   let slideTimer: number | null = null
-  let overlayEl: HTMLDivElement | null = null
-
-  function clearFadeTimer() {
-    if (fadeTimer != null) {
-      window.clearTimeout(fadeTimer)
-      fadeTimer = null
-    }
-  }
+  let activeAnim: Animation | null = null
 
   function clearSlideTimer() {
     if (slideTimer != null) {
@@ -40,15 +30,19 @@ export function createStageMotion(opts: {
     }
   }
 
-  function removeOverlay() {
-    overlayEl?.remove()
-    overlayEl = null
+  function stopAnim() {
+    try {
+      activeAnim?.cancel()
+    } catch {
+      /* ignore */
+    }
+    activeAnim = null
   }
 
   function resetOpacity() {
     const stage = opts.getStage()
     if (!stage) return
-    stage.style.transition = 'none'
+    stopAnim()
     stage.style.opacity = '1'
   }
 
@@ -59,78 +53,52 @@ export function createStageMotion(opts: {
     stage.style.transform = 'translateX(0)'
   }
 
-  function cancel(resetOpacityFlag = true) {
+  function cancel() {
     fadeGen += 1
-    clearFadeTimer()
-    removeOverlay()
-    if (resetOpacityFlag) resetOpacity()
+    clearSlideTimer()
+    resetOpacity()
+    resetTransform()
   }
 
-  function playSnapshotCrossfade(apply: () => void) {
+  function animateOpacity(el: HTMLElement, from: number, to: number, duration: number): Promise<void> {
+    stopAnim()
+    el.style.opacity = String(from)
+    const anim = el.animate(
+      [{ opacity: from }, { opacity: to }],
+      { duration, easing: 'ease', fill: 'forwards' },
+    )
+    activeAnim = anim
+    return anim.finished.then(() => {
+      el.style.opacity = String(to)
+      if (activeAnim === anim) activeAnim = null
+      try {
+        anim.cancel() // clear WAAPI effect; inline opacity remains
+      } catch {
+        /* ignore */
+      }
+    }).catch(() => {
+      el.style.opacity = String(to)
+      if (activeAnim === anim) activeAnim = null
+    })
+  }
+
+  function playFadeSwap(apply: () => void) {
     const stage = opts.getStage()
-    const host = stage?.parentElement
     const gen = ++fadeGen
-    clearFadeTimer()
-    removeOverlay()
-
-    if (!stage || !host) {
+    if (!stage) {
       apply()
       return
     }
 
-    stage.style.transition = 'none'
-    stage.style.opacity = '1'
     stage.style.transform = 'translateX(0)'
-
-    const image = opts.getChartImage()
-    if (!image) {
+    void animateOpacity(stage, 1, 0, opts.crossfadeMs).then(() => {
+      if (gen !== fadeGen) return
       apply()
-      return
-    }
-
-    // Div + background-image: more reliable than <img> decode timing for data URLs.
-    const overlay = document.createElement('div')
-    overlay.setAttribute('aria-hidden', 'true')
-    overlay.style.cssText = [
-      'position:absolute',
-      'inset:0',
-      'z-index:6',
-      'pointer-events:none',
-      'opacity:1',
-      'background-repeat:no-repeat',
-      'background-position:center',
-      'background-size:100% 100%',
-      // No transition yet — commit opaque frame first.
-      'transition:none',
-    ].join(';')
-    // JSON.stringify quotes the data URL safely for CSS url("...")
-    overlay.style.backgroundImage = `url(${JSON.stringify(image)})`
-    host.appendChild(overlay)
-    overlayEl = overlay
-
-    // Force layout so the freeze-frame is painted before we swap the live chart.
-    void overlay.offsetWidth
-
-    apply()
-
-    const startFade = () => {
-      if (gen !== fadeGen || overlayEl !== overlay) return
-      // Reflow, then enable transition and fade — avoids coalesced hard cut.
-      void overlay.offsetWidth
-      overlay.style.transition = `opacity ${opts.crossfadeMs}ms ease`
+      // Next frame so Chart.js can paint before fade-in.
       requestAnimationFrame(() => {
-        if (gen !== fadeGen || overlayEl !== overlay) return
-        overlay.style.opacity = '0'
-        fadeTimer = window.setTimeout(() => {
-          if (overlayEl === overlay) removeOverlay()
-          fadeTimer = null
-        }, opts.crossfadeMs + 40)
+        if (gen !== fadeGen) return
+        void animateOpacity(stage, 0, 1, opts.crossfadeMs)
       })
-    }
-
-    // Two frames: browser paints overlay + new canvas under it, then fade.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(startFade)
     })
   }
 
@@ -156,7 +124,7 @@ export function createStageMotion(opts: {
 
   return {
     cancel,
-    playSnapshotCrossfade,
+    playFadeSwap,
     resetTransform,
     resetOpacity,
     playSlideLeft,

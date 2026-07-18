@@ -22,9 +22,8 @@
       </div>
     </div>
 
-    <!-- overflow hidden clips slide + snapshot overlay -->
     <div class="relative h-72 overflow-hidden">
-      <div ref="chartStage" class="absolute inset-0">
+      <div ref="chartStage" class="absolute inset-0" style="opacity: 1">
         <canvas ref="chartCanvas" role="img" :aria-label="chartAriaLabel"></canvas>
       </div>
       <div
@@ -74,7 +73,7 @@ import { applyChartChromeColors, buildTimeSeriesChartConfig } from './timeSeries
 import { createStageMotion } from './chartStageMotion'
 import { useTheme } from '../composables/useTheme'
 
-// Layer: L2 流程层 — slide / metric-morph / range snapshot-crossfade.
+// Layer: L2 流程层 — slide / metric-morph / range WAAPI fade.
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, LineController, Filler, Tooltip)
 
@@ -93,9 +92,8 @@ let chartInstance: Chart<'line'> | null = null
 let lastDataKey = ''
 let lastTimestamps: string[] = []
 let lastModelsKey = ''
-/** Raw (non-cumulative) series from last paint — metric-morph bridge source. */
+/** Display-space raw series (length = CHART_DISPLAY_POINTS) for metric morph. */
 let lastSeriesRaw: ModelSeries[] = []
-/** Metric / range of the currently painted frame. */
 let lastPaintedMetric = ''
 let lastPaintedRange = ''
 const pending = ref(false)
@@ -104,13 +102,6 @@ let pendingMetric = ''
 
 const motion = createStageMotion({
   getStage: () => chartStage.value,
-  getChartImage: () => {
-    try {
-      return chartInstance ? chartInstance.toBase64Image('image/png', 1) : null
-    } catch {
-      return null
-    }
-  },
   crossfadeMs: CROSSFADE_MS,
 })
 
@@ -160,13 +151,24 @@ function writeChartData(range: string, timestamps: string[], series: ModelSeries
   syncLegend(datasets)
 }
 
-function commitPaintState(metric: string, range: string, timestamps: string[], series: ModelSeries[]) {
-  lastTimestamps = timestamps.slice()
-  lastModelsKey = modelsKey(series)
-  lastSeriesRaw = cloneSeries(series)
+/**
+ * Persist paint identity from **API** series for dataKey stability.
+ * Why: keying off resampled display endpoints made lastDataKey ≠ next props key,
+ * so a second apply fired mid-fade, cancel()'d the animation, and hard-snapped.
+ */
+function commitPaintState(
+  metric: string,
+  range: string,
+  apiTimestamps: string[],
+  apiSeries: ModelSeries[],
+  displaySeries: ModelSeries[],
+) {
+  lastTimestamps = apiTimestamps.slice()
+  lastModelsKey = modelsKey(apiSeries)
+  lastSeriesRaw = cloneSeries(displaySeries)
   lastPaintedMetric = metric
   lastPaintedRange = range
-  lastDataKey = dataKey(timestamps, series, metric, range)
+  lastDataKey = dataKey(apiTimestamps, apiSeries, metric, range)
   pending.value = false
   pendingRange = range
   pendingMetric = metric
@@ -184,7 +186,6 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   if (!chartInstance) createChart()
   if (!chartInstance) return
 
-  // Fixed display grid keeps metric morph on equal index counts.
   const display = normalizeSeriesForDisplay(timestamps, series, CHART_DISPLAY_POINTS)
   const prevTs = lastTimestamps
   const prevLen = prevTs.length
@@ -192,12 +193,7 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   const sameModels = modelsKey(series) === lastModelsKey && lastModelsKey !== ''
   const rangeChanged = lastPaintedRange !== '' && range !== lastPaintedRange
   const metricChanged = lastPaintedMetric !== '' && metric !== lastPaintedMetric
-  const canSlide = canLiveSlide({
-    rangeChanged,
-    shift,
-    sameModels,
-    prevLen,
-  })
+  const canSlide = canLiveSlide({ rangeChanged, shift, sameModels, prevLen })
   const isFirstPaint = prevLen === 0 || chartInstance.data.datasets.length === 0 || lastSeriesRaw.length === 0
   const hasData = display.timestamps.length > 0 && display.series.length > 0
   const canTransition = !isFirstPaint && hasData
@@ -205,26 +201,25 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
 
   motion.resetTransform()
 
-  // ALL range switches: freeze-frame crossfade (interval-agnostic, no 假折线).
-  // Why not morph-only: cross-interval + Top-N churn made morph/slide paths inconsistent
-  // (only 1h↔6h / 7d↔all looked fine). Snapshot treats every pair the same.
+  // Range: WAAPI fade on the stage — every pair, every interval. No 假折线.
   if (canTransition && rangeChanged) {
-    const ts = display.timestamps.slice()
-    const ser = cloneSeries(display.series)
-    motion.playSnapshotCrossfade(() => {
+    const apiTs = timestamps.slice()
+    const apiSer = cloneSeries(series)
+    const dispTs = display.timestamps.slice()
+    const dispSer = cloneSeries(display.series)
+    motion.playFadeSwap(() => {
       if (!chartInstance) return
       setYTickFormat(chartInstance, metric)
-      writeChartData(range, ts, ser, false)
+      writeChartData(range, dispTs, dispSer, false)
       chartInstance.update('none')
-      commitPaintState(metric, range, timestamps, ser)
+      commitPaintState(metric, range, apiTs, apiSer, dispSer)
     })
     return
   }
 
-  // Non-range paths: drop any overlay and keep stage solid.
-  motion.cancel(true)
+  motion.cancel()
 
-  // USD↔Tokens only: y/color morph (Top-N may re-rank on fixed grid).
+  // USD↔Tokens: Chart.js y-morph (proven working).
   if (canTransition && metricChanged && !canSlide) {
     if (lastPaintedMetric) setYTickFormat(chartInstance, lastPaintedMetric)
     if (sameDsCount) {
@@ -238,7 +233,7 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
       writeChartData(range, display.timestamps, display.series, false)
     }
     chartInstance.update('morph' as 'none')
-    commitPaintState(metric, range, timestamps, display.series)
+    commitPaintState(metric, range, timestamps, series, display.series)
     return
   }
 
@@ -252,16 +247,14 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   chartInstance.update('none')
   if (canSlide) playSlideLeft(shift, prevLen)
 
-  // Risk: committing an empty frame under a new range would skip the next transition.
   if (!hasData && rangeChanged && !isFirstPaint) {
     pending.value = false
     return
   }
-  commitPaintState(metric, range, timestamps, display.series)
+  commitPaintState(metric, range, timestamps, series, display.series)
 }
 
 function onControlChange() {
-  // Only mark pending — do NOT reformat ticks yet (old values + new unit jumps the axis).
   pending.value = true
   pendingRange = props.timeRange
   pendingMetric = props.metric
@@ -294,7 +287,7 @@ onMounted(() => nextTick(() => {
   }
 }))
 onBeforeUnmount(() => {
-  motion.cancel(true)
+  motion.cancel()
   chartInstance?.destroy()
   chartInstance = null
 })

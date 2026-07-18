@@ -29,11 +29,10 @@ export const SLIDE_MS = 480
 export const MORPH_MS = 560
 export const MORPH_EASING = 'easeInOutCubic'
 /**
- * Range switch: freeze-frame overlay fade (each leg).
- * Why: length-bridge morph paints 假折线; live-canvas opacity transitions were unreliable.
- * 360ms is long enough to read as motion without feeling sluggish.
+ * Range switch: WAAPI opacity fade out/in on the chart stage (each leg).
+ * Why: CSS transitions + snapshot overlays kept failing; Element.animate is reliable.
  */
-export const CROSSFADE_MS = 360
+export const CROSSFADE_MS = 320
 /**
  * Fixed display resolution for metric/range y-morph.
  * Why: Chart.js only morphs cleanly when index counts match.
