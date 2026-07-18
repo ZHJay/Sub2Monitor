@@ -34,13 +34,22 @@ import Dashboard from './views/Dashboard.vue'
 import ThemeSwitcher from './components/ThemeSwitcher.vue'
 import { createSSOChallenge, getSSOSession } from './api/client'
 import { startTopLevelSSO } from './auth/sub2apiSsoBridge'
+import { createScreenWakeLock, type WakeLockPort } from './display/screenWakeLock'
+import {
+  useAuthenticatedScreenWakeLock,
+  type AuthenticationStatus,
+} from './display/useAuthenticatedScreenWakeLock'
 import { useTheme } from './composables/useTheme'
 
 // Keep theme media listener alive on the auth gate as well.
 useTheme()
 
-type AuthenticationStatus = 'checking' | 'anonymous' | 'unavailable' | 'authenticated'
 const status = ref<AuthenticationStatus>('checking')
+const browserWakeLock = 'wakeLock' in navigator
+  ? navigator.wakeLock as unknown as WakeLockPort
+  : undefined
+useAuthenticatedScreenWakeLock(status, createScreenWakeLock(document, browserWakeLock))
+
 const message = computed(() => status.value === 'unavailable'
   ? '身份服务暂时不可用，请稍后重试。'
   : '请先在 Sub2API 登录管理员账户，再返回此页面。')

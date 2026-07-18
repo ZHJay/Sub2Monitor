@@ -14,6 +14,7 @@ import {
   type IntradayHeatPoint,
   type UserScope
 } from '../api/client'
+import { createRefreshDeadlineScheduler } from '../refresh/refreshDeadlineScheduler'
 
 // Layer: L2 流程层（前端）
 // Boundary: 编排 metrics 拉取、筛选与日下钻；UI 只消费状态。
@@ -38,7 +39,6 @@ export function useDashboardMetrics() {
   const intradayLoading = ref(false)
   const intradayError = ref<string | null>(null)
 
-  let refreshInterval: number | null = null
   let timeSeriesRequestSequence = 0
   let intradayRequestSequence = 0
 
@@ -129,7 +129,7 @@ export function useDashboardMetrics() {
     intradayError.value = null
   }
 
-  async function refreshData() {
+  async function refreshDataOnce() {
     loading.value = true
     error.value = null
     try {
@@ -156,21 +156,20 @@ export function useDashboardMetrics() {
     }
   }
 
+  const refreshScheduler = createRefreshDeadlineScheduler(refreshDataOnce, {
+    page: document,
+    runtime: window,
+    now: Date.now,
+    setTimer: (callback, delayMs) => window.setTimeout(callback, delayMs),
+    clearTimer: (timerId) => window.clearTimeout(timerId),
+  })
+  function refreshData() { return refreshScheduler.refreshNow() }
   function setIncludeCache(value: boolean) { includeCache.value = value }
   function setUserScope(value: UserScope) { userScope.value = value }
 
-  watch([includeCache, userScope], () => { refreshData() })
-
-  function startAutoRefresh() {
-    refreshData()
-    refreshInterval = window.setInterval(() => { refreshData() }, 30000)
-  }
-  function stopAutoRefresh() {
-    if (refreshInterval) clearInterval(refreshInterval)
-  }
-
-  onMounted(startAutoRefresh)
-  onUnmounted(stopAutoRefresh)
+  watch([includeCache, userScope], () => { void refreshData() })
+  onMounted(() => refreshScheduler.start())
+  onUnmounted(() => refreshScheduler.stop())
 
   return {
     loading, error, lastUpdateText, summary,
