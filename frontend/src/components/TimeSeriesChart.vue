@@ -79,7 +79,7 @@ import { applyChartChromeColors, buildTimeSeriesChartConfig } from './timeSeries
 import { createStageMotion } from './chartStageMotion'
 import { useTheme } from '../composables/useTheme'
 
-// Layer: L2 流程层 — slide / metric-morph / range WAAPI fade.
+// Layer: L2 流程层 — live slide / Chart.js morph (range + metric).
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, LineController, Filler, Tooltip)
 
@@ -203,41 +203,26 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   const isFirstPaint = prevLen === 0 || chartInstance.data.datasets.length === 0 || lastSeriesRaw.length === 0
   const hasData = display.timestamps.length > 0 && display.series.length > 0
   const canTransition = !isFirstPaint && hasData
-  const sameDsCount = chartInstance.data.datasets.length === display.series.length
 
   motion.resetTransform()
-
-  // Range: WAAPI fade on the stage — every pair, every interval. No 假折线.
-  if (canTransition && rangeChanged) {
-    const apiTs = timestamps.slice()
-    const apiSer = cloneSeries(series)
-    const dispTs = display.timestamps.slice()
-    const dispSer = cloneSeries(display.series)
-    motion.playFadeSwap(() => {
-      if (!chartInstance) return
-      setYTickFormat(chartInstance, metric)
-      writeChartData(range, dispTs, dispSer, false)
-      chartInstance.update('none')
-      commitPaintState(metric, range, apiTs, apiSer, dispSer)
-    })
-    return
-  }
-
   motion.cancel()
 
-  // USD↔Tokens: Chart.js y-morph (proven working).
-  if (canTransition && metricChanged && !canSlide) {
-    if (lastPaintedMetric) setYTickFormat(chartInstance, lastPaintedMetric)
-    if (sameDsCount) {
-      const fromSeries = bridgeSeriesForMorph(lastSeriesRaw, display.series, CHART_DISPLAY_POINTS)
-      writeChartData(range, display.timestamps, fromSeries, false)
-      chartInstance.update('none')
-      setYTickFormat(chartInstance, metric)
-      writeChartData(range, display.timestamps, display.series, true)
+  // Range and/or USD↔Tokens: same Chart.js y-morph on fixed display grid.
+  // Why: user wants curve stretch/shrink like metric switch, not opacity fade.
+  // Invariant: both ends are CHART_DISPLAY_POINTS so morph is pure y (labels snap).
+  // Risk: never paint a length-bridge of unequal bucket counts — only display-space.
+  if (canTransition && (rangeChanged || metricChanged) && !canSlide) {
+    if (metricChanged && lastPaintedMetric) {
+      setYTickFormat(chartInstance, lastPaintedMetric)
     } else {
       setYTickFormat(chartInstance, metric)
-      writeChartData(range, display.timestamps, display.series, false)
     }
+    // Bridge previous display y onto next model order; one none-frame then morph.
+    const fromSeries = bridgeSeriesForMorph(lastSeriesRaw, display.series, CHART_DISPLAY_POINTS)
+    writeChartData(range, display.timestamps, fromSeries, false)
+    chartInstance.update('none')
+    setYTickFormat(chartInstance, metric)
+    writeChartData(range, display.timestamps, display.series, true)
     chartInstance.update('morph' as 'none')
     commitPaintState(metric, range, timestamps, series, display.series)
     return

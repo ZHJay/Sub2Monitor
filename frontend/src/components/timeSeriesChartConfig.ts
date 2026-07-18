@@ -43,7 +43,7 @@ export function buildTimeSeriesChartConfig(
         },
       },
       transitions: {
-        // Named mode for USD↔Tokens only. Time-range switches use CSS crossfade, not morph.
+        // Named mode for USD↔Tokens and time-range morph (fixed display grid).
         morph: {
           animation: { duration: MORPH_MS, easing: MORPH_EASING },
           animations: {

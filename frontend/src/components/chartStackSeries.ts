@@ -25,20 +25,20 @@ const STACK_COLORS_BOTTOM_TO_TOP = [
 
 export const STACK_ID = 'models'
 export const SLIDE_MS = 480
-/** Metric-only morph duration (y stretch/shrink + color). Range switches do not use morph. */
+/** Metric + range morph duration (y stretch/shrink + color). */
 export const MORPH_MS = 560
 export const MORPH_EASING = 'easeInOutCubic'
 /**
- * Range switch: WAAPI opacity fade out/in on the chart stage (each leg).
- * Why: CSS transitions + snapshot overlays kept failing; Element.animate is reliable.
+ * Legacy stage fade duration (WAAPI). Range switches no longer use fade;
+ * kept for slide-adjacent motion helpers / tests.
  */
 export const CROSSFADE_MS = 320
 /**
- * Fixed display resolution for metric/range y-morph.
+ * Fixed display resolution for Chart.js y-morph (metric + range).
  * Why: Chart.js only morphs cleanly when index counts match.
- * Invariant: range morph mutates in place on this grid — never paint a
- * resampled-old bridge frame first (that was the 假折线 flash). When dataset
- * count changes, use snapshot crossfade instead of length-bridge.
+ * Invariant: both previous and next series are resampled to this length in
+ * display space before update('morph'); never morph unequal raw bucket counts
+ * (that was the 假折线 flash). Live slide still uses API timestamps.
  */
 export const CHART_DISPLAY_POINTS = 48
 
@@ -163,10 +163,9 @@ export function resampleTimestamps(timestamps: string[], targetLen: number): str
 }
 
 /**
- * Normalize any API window onto a fixed point count (tests / experimental).
+ * Normalize any API window onto a fixed point count for morph.
  * Contract: output series values are still raw (non-cumulative); buildDatasets stacks them.
- * Invariant: production TimeSeriesChart range switches paint real bucket counts via crossfade,
- * not this resampled grid.
+ * Invariant: TimeSeriesChart range + metric morph both paint this grid.
  */
 export function normalizeSeriesForDisplay(
   timestamps: string[],
