@@ -32,9 +32,9 @@ func AggregateSummaryMetrics(db *gorm.DB, filter l0_axioms.MetricsFilter) (*l0_a
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hourly cost: %w", err)
 	}
-	totalTokens, err := l1_blocks.GetTotalTokens(db, filter, userID)
+	tokenSummary, err := l1_blocks.GetTokenSummary(db, filter, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get total tokens: %w", err)
+		return nil, fmt.Errorf("failed to get token summary: %w", err)
 	}
 	requestCount, err := l1_blocks.GetRequestCount(db, filter, userID)
 	if err != nil {
@@ -42,9 +42,13 @@ func AggregateSummaryMetrics(db *gorm.DB, filter l0_axioms.MetricsFilter) (*l0_a
 	}
 
 	return &l0_axioms.MetricsSummary{
-		TotalCost:    totalCost,
-		HourlyCost:   hourlyCost,
-		TotalTokens:  totalTokens,
+		TotalCost:   totalCost,
+		HourlyCost:  hourlyCost,
+		TotalTokens: tokenSummary.TotalTokens,
+		CacheHitRate: l0_axioms.CalculateCacheHitRatePercent(
+			tokenSummary.CacheReadTokens,
+			tokenSummary.CacheEligibleTokens,
+		),
 		Requests:     l0_axioms.RequestStats{Total: requestCount, Success: requestCount, Failed: 0},
 		IncludeCache: filter.IncludeCache,
 		UserEmail:    filter.UserEmail,

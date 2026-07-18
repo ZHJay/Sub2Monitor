@@ -70,6 +70,7 @@ type MetricsSummary struct {
 	TotalCost    float64      `json:"totalCost"`
 	HourlyCost   float64      `json:"hourlyCost"`
 	TotalTokens  int64        `json:"totalTokens"`
+	CacheHitRate float64      `json:"cacheHitRate"`
 	Requests     RequestStats `json:"requests"`
 	IncludeCache bool         `json:"includeCache"`
 	UserEmail    string       `json:"userEmail,omitempty"`

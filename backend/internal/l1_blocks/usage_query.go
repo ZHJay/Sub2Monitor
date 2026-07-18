@@ -63,15 +63,17 @@ func GetHourlyCost(db *gorm.DB, filter l0_axioms.MetricsFilter, userID int64) (f
 	return hourlyCost, nil
 }
 
-// GetTotalTokens sums tokens using the cache toggle expression.
-func GetTotalTokens(db *gorm.DB, filter l0_axioms.MetricsFilter, userID int64) (int64, error) {
-	var totalTokens int64
+// GetTokenSummary aggregates total and cache token counters in one filtered scan.
+func GetTokenSummary(db *gorm.DB, filter l0_axioms.MetricsFilter, userID int64) (l0_axioms.TokenSummary, error) {
+	var summary l0_axioms.TokenSummary
 	query := applyMetricsFilter(db.Model(&l0_axioms.UsageLog{}), filter, userID)
-	err := query.Select("COALESCE(SUM"+tokenExpr(filter)+", 0)").Scan(&totalTokens).Error
-	if err != nil {
-		return 0, fmt.Errorf("failed to query total tokens: %w", err)
+	selectSQL := "COALESCE(SUM" + tokenExpr(filter) + ", 0) AS total_tokens, " +
+		"COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens, " +
+		"COALESCE(SUM(input_tokens + cache_creation_tokens + cache_read_tokens), 0) AS cache_eligible_tokens"
+	if err := query.Select(selectSQL).Scan(&summary).Error; err != nil {
+		return summary, fmt.Errorf("failed to query token summary: %w", err)
 	}
-	return totalTokens, nil
+	return summary, nil
 }
 
 // GetRequestCount counts usage_logs rows under the filter.
@@ -132,9 +134,9 @@ func GetUsageByModel(db *gorm.DB, filter l0_axioms.MetricsFilter, userID int64) 
 	var stats []l0_axioms.ModelStats
 	query := applyMetricsFilter(db.Model(&l0_axioms.UsageLog{}), filter, userID)
 	err := query.Select(
-		"model, "+
-			"COALESCE(SUM(total_cost), 0) as cost, "+
-			"COALESCE(SUM"+tokenExpr(filter)+", 0) as tokens, "+
+		"model, " +
+			"COALESCE(SUM(total_cost), 0) as cost, " +
+			"COALESCE(SUM" + tokenExpr(filter) + ", 0) as tokens, " +
 			"COUNT(*) as requests",
 	).Group("model").Order("cost DESC").Scan(&stats).Error
 	if err != nil {
