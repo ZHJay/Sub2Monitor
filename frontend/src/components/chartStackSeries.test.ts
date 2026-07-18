@@ -6,9 +6,11 @@ import {
   bridgeSeriesForMorph,
   formatYAxisTick,
   normalizeSeriesForDisplay,
+  padSeriesLayers,
   resampleTimestamps,
   canLiveSlide,
   CHART_DISPLAY_POINTS,
+  CHART_STACK_LAYERS,
 } from './chartStackSeries'
 
 describe('detectTimestampShift', () => {
@@ -131,6 +133,30 @@ describe('normalizeSeriesForDisplay', () => {
     const out = normalizeSeriesForDisplay(['t0', 't1'], [{ model: 'm', values: [1, 2] }])
     expect(out.timestamps).toHaveLength(CHART_DISPLAY_POINTS)
     expect(out.series[0].values).toHaveLength(CHART_DISPLAY_POINTS)
+  })
+})
+
+describe('padSeriesLayers', () => {
+  it('pads to CHART_STACK_LAYERS with empty models and zeros', () => {
+    const out = padSeriesLayers(
+      [{ model: 'a', values: [1, 2] }],
+      CHART_STACK_LAYERS,
+      2,
+    )
+    expect(out).toHaveLength(CHART_STACK_LAYERS)
+    expect(out[0]).toEqual({ model: 'a', values: [1, 2] })
+    expect(out[1]).toEqual({ model: '', values: [0, 0] })
+    expect(out.every((s) => s.values.length === 2)).toBe(true)
+  })
+
+  it('truncates when more than layer cap', () => {
+    const series = Array.from({ length: 12 }, (_, i) => ({
+      model: `m${i}`,
+      values: [i],
+    }))
+    const out = padSeriesLayers(series, 9, 1)
+    expect(out).toHaveLength(9)
+    expect(out[8].model).toBe('m8')
   })
 })
 

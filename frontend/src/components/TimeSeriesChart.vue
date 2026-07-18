@@ -61,6 +61,7 @@ import {
   type ModelSeries,
   type StackedLineDataset,
   CHART_DISPLAY_POINTS,
+  CHART_STACK_LAYERS,
   CROSSFADE_MS,
   SLIDE_MS,
   buildDatasets,
@@ -70,8 +71,10 @@ import {
   detectTimestampShift,
   formatAxisLabel,
   formatYAxisTick,
+  isPadModel,
   modelsKey,
   normalizeSeriesForDisplay,
+  padSeriesLayers,
 } from './chartStackSeries'
 import { writeStackedDatasets } from './chartLineMutations'
 import { applyChartChromeColors, buildTimeSeriesChartConfig } from './timeSeriesChartConfig'
@@ -130,10 +133,15 @@ function pillClass(active: boolean): string {
 }
 
 function syncLegend(datasets: StackedLineDataset[]) {
-  legendItems.value = datasets.map((d) => ({
-    label: String(d.label ?? ''),
-    color: String(d.backgroundColor ?? d.borderColor ?? '#888'),
-  }))
+  legendItems.value = datasets
+    .filter((d) => {
+      const label = String(d.label ?? '')
+      return label !== '' && !isPadModel(label)
+    })
+    .map((d) => ({
+      label: String(d.label ?? ''),
+      color: String(d.backgroundColor ?? d.borderColor ?? '#888'),
+    }))
 }
 
 function setYTickFormat(chart: Chart<'line'>, metric: string) {
@@ -192,6 +200,8 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   if (!chartInstance) return
 
   const display = normalizeSeriesForDisplay(timestamps, series, CHART_DISPLAY_POINTS)
+  // Fixed layer count so morph can always mutate in place (no replace → no grow-from-0 fade).
+  const layered = padSeriesLayers(display.series, CHART_STACK_LAYERS, CHART_DISPLAY_POINTS)
   const prevTs = lastTimestamps
   const prevLen = prevTs.length
   const shift = detectTimestampShift(prevTs, timestamps)
@@ -202,27 +212,25 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   const isFirstPaint = prevLen === 0 || chartInstance.data.datasets.length === 0 || lastSeriesRaw.length === 0
   const hasData = display.timestamps.length > 0 && display.series.length > 0
   const canTransition = !isFirstPaint && hasData
+  const canMutate = chartInstance.data.datasets.length === layered.length
 
   motion.resetTransform()
   motion.cancel()
 
-  // Range and/or USD↔Tokens: Chart.js y-morph on fixed display grid.
-  // Why: curve stretch like metric switch (not opacity fade).
-  // Invariant: display series are always CHART_DISPLAY_POINTS long.
-  // Why no bridge+update('none') before morph: that intermediate paint is the
-  // 假折线 flash (e.g. 24h→6h shows resampled-old curve under new labels).
-  // Contract: morph from the already-painted geometry → mutate/replace target → one morph update.
+  // Range and/or USD↔Tokens: Chart.js y-morph on fixed display grid + fixed layers.
+  // Why no dataset replace: replace animates from 0 → looks like fade-in.
+  // Why no bridge+none: intermediate paint was 假折线 flash.
+  // Contract: mutate painted geometry → one update('morph').
   if (canTransition && (rangeChanged || metricChanged) && !canSlide) {
     if (metricChanged && lastPaintedMetric) {
       setYTickFormat(chartInstance, lastPaintedMetric)
     } else {
       setYTickFormat(chartInstance, metric)
     }
-    const sameCount = chartInstance.data.datasets.length === display.series.length
-    writeChartData(range, display.timestamps, display.series, sameCount)
+    writeChartData(range, display.timestamps, layered, canMutate)
     setYTickFormat(chartInstance, metric)
     chartInstance.update('morph' as 'none')
-    commitPaintState(metric, range, timestamps, series, display.series)
+    commitPaintState(metric, range, timestamps, series, layered)
     return
   }
 
@@ -230,8 +238,8 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
   writeChartData(
     range,
     display.timestamps,
-    display.series,
-    sameModels && chartInstance.data.datasets.length > 0,
+    layered,
+    canMutate || (sameModels && chartInstance.data.datasets.length > 0),
   )
   chartInstance.update('none')
   if (canSlide) playSlideLeft(shift, prevLen)
@@ -240,7 +248,7 @@ function applySeriesUpdate(metric: string, range: string, timestamps: string[], 
     pending.value = false
     return
   }
-  commitPaintState(metric, range, timestamps, series, display.series)
+  commitPaintState(metric, range, timestamps, series, layered)
 }
 
 function onControlChange() {

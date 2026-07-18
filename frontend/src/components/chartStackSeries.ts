@@ -41,6 +41,45 @@ export const CROSSFADE_MS = 320
  * (that was the 假折线 flash). Live slide still uses API timestamps.
  */
 export const CHART_DISPLAY_POINTS = 48
+/**
+ * Fixed stack slots (Top 8 + other).
+ * Why: when dataset *count* changes, Chart.js replaces datasets and animates
+ * from 0 — looks like fade-in, not USD/token-style y-morph.
+ * Invariant: after first paint, chart always has exactly this many datasets
+ * so range/metric updates can mutate in place + update('morph').
+ */
+export const CHART_STACK_LAYERS = 9
+
+/** Empty model name = padding slot (hidden from legend/tooltip). */
+export function isPadModel(model: string): boolean {
+  return model === ''
+}
+
+/**
+ * Pad/truncate series to a fixed layer count at a fixed point count.
+ * Contract: output length === layers; each values.length === pointCount.
+ */
+export function padSeriesLayers(
+  series: ModelSeries[],
+  layers: number = CHART_STACK_LAYERS,
+  pointCount: number = CHART_DISPLAY_POINTS,
+): ModelSeries[] {
+  const out: ModelSeries[] = []
+  for (let i = 0; i < layers; i++) {
+    if (i < series.length) {
+      const s = series[i]
+      out.push({
+        model: s.model,
+        values: s.values.length === pointCount
+          ? s.values.slice()
+          : resampleNumbers(s.values, pointCount),
+      })
+    } else {
+      out.push({ model: '', values: new Array(pointCount).fill(0) })
+    }
+  }
+  return out
+}
 
 function colorForStackIndex(index: number, count: number): { fill: string; stroke: string } {
   const palette = STACK_COLORS_BOTTOM_TO_TOP

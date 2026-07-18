@@ -83,12 +83,16 @@ export function buildTimeSeriesChartConfig(
           },
           callbacks: {
             label(ctx) {
+              const label = String(ctx.dataset.label ?? '')
+              if (!label) return ''
               const ds = ctx.dataset as StackedLineDataset
               const raw = ds.rawValues?.[ctx.dataIndex] ?? 0
               return `${ctx.dataset.label}: ${formatMetricValue(raw, getMetric())}`
             },
             footer(items: TooltipItem<'line'>[]) {
               const total = items.reduce((acc, it) => {
+                const label = String(it.dataset.label ?? '')
+                if (!label) return acc
                 const ds = it.dataset as StackedLineDataset
                 return acc + (ds.rawValues?.[it.dataIndex] ?? 0)
               }, 0)
