@@ -259,7 +259,7 @@ http://127.0.0.1:4173/?view=compact&sso=unavailable#metrics
 
 Verify page identity, non-blank content, absence of a framework error overlay, relevant console health, and screenshot evidence. After mount, the address bar must end in `/?view=compact#metrics`, and the page must show the temporary-unavailable message without repeatedly navigating.
 
-- [ ] **Step 3: Exercise the deployed refresh flow after deployment**
+- [x] **Step 3: Exercise the deployed refresh flow after deployment**
 
 On `https://monitor.api4kimi8.org/`, invalidate only the Monitor session by restarting its container or allowing its in-memory session to expire while keeping the Sub2API browser login active. Refresh once and verify the flow under test:
 
@@ -269,6 +269,6 @@ Monitor refresh -> one Sub2API Bridge round-trip -> Monitor dashboard renders
 
 Collect the final URL, DOM snapshot, console warnings/errors, interaction result, and screenshot. Confirm no “重试” click was used and no redirect loop occurred.
 
-## Remote Access Checkpoint
+## Remote Deployment Result
 
-The configured large-server key path `/Users/zhanghjay/Desktop/key_for_129.146.121.188` did not exist when this plan was written. Local implementation and QA can proceed, but deployed-container validation requires a restored key at that exact path or a replacement path supplied by the user. Never read or print the private key contents.
+The large-server key was resolved from the unified `/Users/zhanghjay/Desktop/KEYS` directory. The release was deployed to the existing Compose project without resetting its pre-existing working-tree changes. The container reported `running healthy`, the new `index-CxXxMRo2.js` asset returned HTTP `200`, browser QA confirmed that refresh automatically performed a Bridge round-trip and removed the one-shot `sso` result, and the user confirmed successful automatic login from an already authenticated Sub2API browser.
