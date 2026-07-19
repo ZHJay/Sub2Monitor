@@ -54,7 +54,22 @@ const message = computed(() => status.value === 'unavailable'
   ? '身份服务暂时不可用，请稍后重试。'
   : '请先在 Sub2API 登录管理员账户，再返回此页面。')
 
-async function startAuthentication(allowRedirect = true) {
+function consumeSSOReturn(): string | null {
+  const url = new URL(window.location.href)
+  const ssoResult = url.searchParams.get('sso')
+  if (ssoResult === null) return null
+
+  url.searchParams.delete('sso')
+  const query = url.searchParams.toString()
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${url.pathname}${query ? `?${query}` : ''}${url.hash}`,
+  )
+  return ssoResult
+}
+
+async function startAuthentication(allowRedirect = true, ssoResult: string | null = null) {
   status.value = 'checking'
   try {
     await getSSOSession()
@@ -62,9 +77,7 @@ async function startAuthentication(allowRedirect = true) {
   } catch (error: any) {
     if (error.response?.status === 503) { status.value = 'unavailable'; return }
     if (!allowRedirect) {
-      status.value = new URLSearchParams(window.location.search).get('sso') === 'unavailable'
-        ? 'unavailable'
-        : 'anonymous'
+      status.value = ssoResult === 'unavailable' ? 'unavailable' : 'anonymous'
       return
     }
     try {
@@ -77,7 +90,8 @@ async function startAuthentication(allowRedirect = true) {
 function authenticationLost() { status.value = 'anonymous' }
 onMounted(() => {
   window.addEventListener('apimonitor:auth-lost', authenticationLost)
-  startAuthentication(!new URLSearchParams(window.location.search).has('sso'))
+  const ssoResult = consumeSSOReturn()
+  startAuthentication(ssoResult === null, ssoResult)
 })
 onBeforeUnmount(() => window.removeEventListener('apimonitor:auth-lost', authenticationLost))
 </script>
