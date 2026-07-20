@@ -10,7 +10,7 @@
         <template v-else>
           <p class="mt-3 mb-6 text-apple-muted">{{ message }}</p>
           <a
-            href="https://api4kimi8.org/login"
+            href="https://burntoken.org/login"
             class="block w-full rounded-full bg-apple-green px-4 py-2.5 text-center text-sm font-semibold text-apple-green-ink transition-opacity hover:opacity-90"
           >
             前往 Sub2API 登录

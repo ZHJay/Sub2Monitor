@@ -10,7 +10,7 @@ import (
 	"github.com/ZHJay/Sub2Monitor/backend/internal/l0_axioms"
 )
 
-const sub2APIIdentityURL = "https://api4kimi8.org/api/v1/auth/me"
+const sub2APIIdentityURL = "https://burntoken.org/api/v1/auth/me"
 const maxIdentityResponseBytes = 64 << 10
 
 // IdentityGateway is the stable L1 contract consumed by the session flow.

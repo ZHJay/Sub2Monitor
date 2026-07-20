@@ -18,7 +18,7 @@ func (transport identityRoundTripper) RoundTrip(request *http.Request) (*http.Re
 
 func TestSub2APIIdentityGatewayPreservesBrowserSessionBindingThroughReverseProxy(t *testing.T) {
 	gateway := NewSub2APIIdentityGateway(&http.Client{Transport: identityRoundTripper(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() != "https://api4kimi8.org/api/v1/auth/me" {
+		if request.URL.String() != "https://burntoken.org/api/v1/auth/me" {
 			t.Fatalf("URL = %q", request.URL.String())
 		}
 		if request.Header.Get("Authorization") != "Bearer upstream-token" {
@@ -42,7 +42,7 @@ func TestSub2APIIdentityGatewayPreservesBrowserSessionBindingThroughReverseProxy
 
 func TestSub2APIIdentityGatewayChecksOnlyFixedAuthority(t *testing.T) {
 	gateway := NewSub2APIIdentityGateway(&http.Client{Transport: identityRoundTripper(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() != "https://api4kimi8.org/api/v1/auth/me" {
+		if request.URL.String() != "https://burntoken.org/api/v1/auth/me" {
 			t.Fatalf("URL = %q", request.URL.String())
 		}
 		if request.Header.Get("Authorization") != "Bearer upstream-token" {

@@ -15,13 +15,13 @@ import (
 const (
 	monitorStateCookieName   = "__Host-apimonitor_sso_state"
 	monitorSessionCookieName = "__Host-apimonitor_session"
-	apiOrigin                = "https://api4kimi8.org"
-	monitorOrigin            = "https://monitor.api4kimi8.org"
-	bridgeCSP                = "default-src 'none'; script-src 'self'; connect-src https://monitor.api4kimi8.org; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+	apiOrigin                = "https://burntoken.org"
+	monitorOrigin            = "https://monitor.burntoken.org"
+	bridgeCSP                = "default-src 'none'; script-src 'self'; connect-src https://monitor.burntoken.org; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 )
 
 const bridgeHTML = `<!doctype html><html><head><meta charset="utf-8"><title>Sub2Monitor SSO</title></head><body><script src="/_monitor-sso/bridge.js" defer></script></body></html>`
-const bridgeJavaScript = `(async function(){'use strict';const monitorOrigin='https://monitor.api4kimi8.org';const state=new URLSearchParams(location.search).get('state')||'';const token=localStorage.getItem('auth_token');const finish=(result)=>location.replace(monitorOrigin+'/?sso='+result);if(!token||!state){finish('login');return}try{const exchangeResponse=await fetch(monitorOrigin+'/api/auth/sso/exchange',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:state,token:token})});finish(exchangeResponse.ok?'complete':(exchangeResponse.status===401||exchangeResponse.status===403?'login':'unavailable'))}catch(error){finish('unavailable')}})();`
+const bridgeJavaScript = `(async function(){'use strict';const monitorOrigin='https://monitor.burntoken.org';const state=new URLSearchParams(location.search).get('state')||'';const token=localStorage.getItem('auth_token');const finish=(result)=>location.replace(monitorOrigin+'/?sso='+result);if(!token||!state){finish('login');return}try{const exchangeResponse=await fetch(monitorOrigin+'/api/auth/sso/exchange',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:state,token:token})});finish(exchangeResponse.ok?'complete':(exchangeResponse.status===401||exchangeResponse.status===403?'login':'unavailable'))}catch(error){finish('unavailable')}})();`
 
 type exchangeRequest struct {
 	State string `json:"state"`
@@ -93,7 +93,7 @@ func (handler *APIHandler) SSOLogout(c *gin.Context) {
 }
 
 func (handler *APIHandler) SSOBridgePage(c *gin.Context) {
-	if !strings.EqualFold(c.Request.Host, "api4kimi8.org") {
+	if !strings.EqualFold(c.Request.Host, "burntoken.org") {
 		c.Status(http.StatusNotFound)
 		return
 	}
@@ -105,7 +105,7 @@ func (handler *APIHandler) SSOBridgePage(c *gin.Context) {
 }
 
 func (handler *APIHandler) SSOBridgeScript(c *gin.Context) {
-	if !strings.EqualFold(c.Request.Host, "api4kimi8.org") {
+	if !strings.EqualFold(c.Request.Host, "burntoken.org") {
 		c.Status(http.StatusNotFound)
 		return
 	}

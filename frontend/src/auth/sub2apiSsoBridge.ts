@@ -1,4 +1,4 @@
-const apiOrigin = 'https://api4kimi8.org'
+const apiOrigin = 'https://burntoken.org'
 const bridgePath = '/_monitor-sso/bridge'
 
 // buildTopLevelBridgeURL contains only an opaque one-time state; upstream credentials never enter a URL.

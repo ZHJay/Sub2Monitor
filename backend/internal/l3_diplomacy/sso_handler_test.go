@@ -107,7 +107,7 @@ func TestSSOExchangeAllowsOnlyAPIBridgeOriginAndSessionStatus(t *testing.T) {
 func TestSSOBridgeRejectsUnexpectedHostAndExchangesCurrentAccessToken(t *testing.T) {
 	router := newSSOTestRouter()
 	request := httptest.NewRequest(http.MethodGet, "/internal/sso/bridge.js", nil)
-	request.Host = "monitor.api4kimi8.org"
+	request.Host = "monitor.burntoken.org"
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	if response.Code != http.StatusNotFound {
@@ -115,16 +115,16 @@ func TestSSOBridgeRejectsUnexpectedHostAndExchangesCurrentAccessToken(t *testing
 	}
 
 	pageRequest := httptest.NewRequest(http.MethodGet, "/internal/sso/bridge", nil)
-	pageRequest.Host = "api4kimi8.org"
+	pageRequest.Host = "burntoken.org"
 	pageResponse := httptest.NewRecorder()
 	router.ServeHTTP(pageResponse, pageRequest)
-	wantCSP := "default-src 'none'; script-src 'self'; connect-src https://monitor.api4kimi8.org; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+	wantCSP := "default-src 'none'; script-src 'self'; connect-src https://monitor.burntoken.org; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 	if pageResponse.Code != http.StatusOK || pageResponse.Header().Get("Content-Security-Policy") != wantCSP {
 		t.Fatalf("unexpected bridge page: status=%d csp=%q", pageResponse.Code, pageResponse.Header().Get("Content-Security-Policy"))
 	}
 
 	request = httptest.NewRequest(http.MethodGet, "/internal/sso/bridge.js", nil)
-	request.Host = "api4kimi8.org"
+	request.Host = "burntoken.org"
 	response = httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	script := response.Body.String()
