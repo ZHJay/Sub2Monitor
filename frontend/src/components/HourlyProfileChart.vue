@@ -49,94 +49,92 @@
             </figcaption>
             <p class="text-[10px] text-apple-muted">box = IQR · line = median · dot = mean</p>
           </div>
-          <div class="space-y-3 overflow-hidden">
-            <div v-for="row in boxPlotRows" :key="row.label">
-              <div class="mb-1 text-[10px] font-medium text-apple-muted">{{ row.label }}</div>
-              <svg
-                class="h-auto w-full overflow-visible"
-                :viewBox="`0 0 ${BOXPLOT_WIDTH} ${BOXPLOT_HEIGHT}`"
-                role="img"
-                :aria-label="`${row.label} boxplot strip of hourly token distribution over ${days} days`"
-              >
-                <g v-for="tick in boxPlotTicks" :key="`${row.label}-${tick.value}`">
-                  <line
-                    :x1="BOXPLOT_LEFT"
-                    :x2="BOXPLOT_RIGHT"
-                    :y1="tick.y"
-                    :y2="tick.y"
-                    stroke="var(--apple-grid)"
-                    stroke-width="1"
-                  />
-                  <text
-                    :x="BOXPLOT_LEFT - 8"
-                    :y="tick.y + 4"
-                    text-anchor="end"
-                    class="fill-apple-muted text-[10px]"
-                  >{{ tick.label }}</text>
-                </g>
+          <div class="overflow-hidden">
+            <svg
+              class="h-auto w-full overflow-visible"
+              :viewBox="`0 0 ${BOXPLOT_WIDTH} ${BOXPLOT_HEIGHT}`"
+              role="img"
+              :aria-label="`Boxplot strip of hourly token distribution over ${days} days`"
+            >
+              <g v-for="tick in boxPlotTicks" :key="tick.value">
                 <line
                   :x1="BOXPLOT_LEFT"
                   :x2="BOXPLOT_RIGHT"
-                  :y1="BOXPLOT_BOTTOM"
-                  :y2="BOXPLOT_BOTTOM"
-                  stroke="var(--apple-axis)"
+                  :y1="tick.y"
+                  :y2="tick.y"
+                  stroke="var(--apple-grid)"
                   stroke-width="1"
                 />
-                <g v-for="box in row.boxes" :key="box.hour">
-                  <line
-                    :x1="box.x"
-                    :x2="box.x"
-                    :y1="box.yMin"
-                    :y2="box.yMax"
-                    stroke="rgb(var(--apple-muted))"
-                    stroke-width="1.2"
-                  />
-                  <line
-                    :x1="box.x - box.whiskerWidth"
-                    :x2="box.x + box.whiskerWidth"
-                    :y1="box.yMin"
-                    :y2="box.yMin"
-                    stroke="rgb(var(--apple-muted))"
-                    stroke-width="1.2"
-                  />
-                  <line
-                    :x1="box.x - box.whiskerWidth"
-                    :x2="box.x + box.whiskerWidth"
-                    :y1="box.yMax"
-                    :y2="box.yMax"
-                    stroke="rgb(var(--apple-muted))"
-                    stroke-width="1.2"
-                  />
-                  <rect
-                    :x="box.x - box.boxWidth / 2"
-                    :y="box.yQ3"
-                    :width="box.boxWidth"
-                    :height="Math.max(1, box.yQ1 - box.yQ3)"
-                    rx="2"
-                    fill="rgba(48, 209, 88, 0.16)"
-                    stroke="rgb(var(--apple-green))"
-                    stroke-width="1"
-                  />
-                  <line
-                    :x1="box.x - box.boxWidth / 2"
-                    :x2="box.x + box.boxWidth / 2"
-                    :y1="box.yMedian"
-                    :y2="box.yMedian"
-                    stroke="rgb(var(--apple-green))"
-                    stroke-width="1.8"
-                  />
-                  <circle :cx="box.x" :cy="box.yMean" r="2.4" fill="#ff9f0a">
-                    <title>{{ box.hour }} mean {{ box.meanLabel }}</title>
-                  </circle>
-                  <text
-                    :x="box.x"
-                    :y="BOXPLOT_BOTTOM + 18"
-                    text-anchor="middle"
-                    class="fill-apple-muted text-[10px]"
-                  >{{ box.hour.replace(':00', '') }}</text>
-                </g>
-              </svg>
-            </div>
+                <text
+                  :x="BOXPLOT_LEFT - 8"
+                  :y="tick.y + 4"
+                  text-anchor="end"
+                  class="fill-apple-muted text-[10px]"
+                >{{ tick.label }}</text>
+              </g>
+              <line
+                :x1="BOXPLOT_LEFT"
+                :x2="BOXPLOT_RIGHT"
+                :y1="BOXPLOT_BOTTOM"
+                :y2="BOXPLOT_BOTTOM"
+                stroke="var(--apple-axis)"
+                stroke-width="1"
+              />
+              <g v-for="box in boxPlotView" :key="box.hour">
+                <line
+                  :x1="box.x"
+                  :x2="box.x"
+                  :y1="box.yMin"
+                  :y2="box.yMax"
+                  stroke="rgb(var(--apple-muted))"
+                  stroke-width="1.2"
+                />
+                <line
+                  :x1="box.x - box.whiskerWidth"
+                  :x2="box.x + box.whiskerWidth"
+                  :y1="box.yMin"
+                  :y2="box.yMin"
+                  stroke="rgb(var(--apple-muted))"
+                  stroke-width="1.2"
+                />
+                <line
+                  :x1="box.x - box.whiskerWidth"
+                  :x2="box.x + box.whiskerWidth"
+                  :y1="box.yMax"
+                  :y2="box.yMax"
+                  stroke="rgb(var(--apple-muted))"
+                  stroke-width="1.2"
+                />
+                <rect
+                  :x="box.x - box.boxWidth / 2"
+                  :y="box.yQ3"
+                  :width="box.boxWidth"
+                  :height="Math.max(1, box.yQ1 - box.yQ3)"
+                  rx="2"
+                  fill="rgba(48, 209, 88, 0.16)"
+                  stroke="rgb(var(--apple-green))"
+                  stroke-width="1"
+                />
+                <line
+                  :x1="box.x - box.boxWidth / 2"
+                  :x2="box.x + box.boxWidth / 2"
+                  :y1="box.yMedian"
+                  :y2="box.yMedian"
+                  stroke="rgb(var(--apple-green))"
+                  stroke-width="1.8"
+                />
+                <circle :cx="box.x" :cy="box.yMean" r="2.4" fill="#ff9f0a">
+                  <title>{{ box.hour }} mean {{ box.meanLabel }}</title>
+                </circle>
+                <text
+                  v-if="box.showHour"
+                  :x="box.x"
+                  :y="BOXPLOT_BOTTOM + 18"
+                  text-anchor="middle"
+                  class="fill-apple-muted text-[10px]"
+                >{{ box.hour.replace(':00', '') }}</text>
+              </g>
+            </svg>
           </div>
         </figure>
 
@@ -147,33 +145,30 @@
             </figcaption>
             <p class="text-[10px] text-apple-muted">每一行单独归一化，颜色越深表示该统计量越高</p>
           </div>
-          <div class="space-y-4 overflow-hidden">
-            <div v-for="section in heatmapSections" :key="section.label" class="space-y-1.5">
-              <div class="text-[10px] font-medium text-apple-muted">{{ section.label }}</div>
-              <div class="space-y-1">
+          <div class="overflow-hidden">
+            <div class="space-y-1">
+              <div
+                v-for="row in heatmapRows"
+                :key="row.label"
+                class="grid items-center gap-1"
+                :style="{ gridTemplateColumns: heatmapGridColumns }"
+              >
+                <div class="truncate pr-2 text-[10px] uppercase tracking-[0.04em] text-apple-muted">{{ row.label }}</div>
                 <div
-                  v-for="row in section.rows"
-                  :key="`${section.label}-${row.label}`"
-                  class="grid items-center gap-1"
-                  :style="{ gridTemplateColumns: heatmapGridColumns }"
-                >
-                  <div class="truncate pr-2 text-[10px] uppercase tracking-[0.04em] text-apple-muted">{{ row.label }}</div>
-                  <div
-                    v-for="cell in row.cells"
-                    :key="`${row.label}-${cell.hour}`"
-                    class="h-6 rounded-[4px] border border-apple-line"
-                    :style="{ background: heatCellBackground(cell.intensity) }"
-                    :title="`${cell.hour} · ${row.label}: ${cell.label}`"
-                  ></div>
-                </div>
-                <div class="grid items-center gap-1 pt-1" :style="{ gridTemplateColumns: heatmapGridColumns }">
-                  <div></div>
-                  <div
-                    v-for="hour in section.hours"
-                    :key="`${section.label}-${hour}`"
-                    class="text-center text-[9px] text-apple-muted"
-                  >{{ hour.replace(':00', '') }}</div>
-                </div>
+                  v-for="cell in row.cells"
+                  :key="`${row.label}-${cell.hour}`"
+                  class="h-6 rounded-[4px] border border-apple-line"
+                  :style="{ background: heatCellBackground(cell.intensity) }"
+                  :title="`${cell.hour} · ${row.label}: ${cell.label}`"
+                ></div>
+              </div>
+              <div class="grid items-center gap-1 pt-1" :style="{ gridTemplateColumns: heatmapGridColumns }">
+                <div></div>
+                <div
+                  v-for="point in points"
+                  :key="`hour-${point.hour}`"
+                  class="text-center text-[9px] text-apple-muted"
+                >{{ showHeatmapHour(point.hour) ? point.hour.replace(':00', '') : '' }}</div>
               </div>
             </div>
           </div>
@@ -233,10 +228,7 @@ let chart: Chart<'line'> | null = null
 
 const summaryItems = computed(() => buildHourlyProfileSummary(props.points, props.days))
 const heatmapRows = computed(() => buildHourlyProfileHeatmapRows(props.points, props.days))
-const HEATMAP_HOURS_PER_ROW = 12
-const BOXPLOT_HOURS_PER_ROW = 12
-
-const heatmapGridColumns = computed(() => `clamp(4.8rem, 18%, 6rem) repeat(${HEATMAP_HOURS_PER_ROW}, minmax(0, 1fr))`)
+const heatmapGridColumns = computed(() => `clamp(4.8rem, 18%, 6rem) repeat(${Math.max(props.points.length, 1)}, minmax(0, 1fr))`)
 const boxPlotPoints = computed(() => buildHourlyProfileBoxPlotPoints(props.points))
 const boxPlotScaleMax = computed(() => hourlyProfileScaleMax(boxPlotPoints.value))
 const boxPlotTicks = computed(() => [0, boxPlotScaleMax.value / 2, boxPlotScaleMax.value].map((value) => ({
@@ -244,31 +236,16 @@ const boxPlotTicks = computed(() => [0, boxPlotScaleMax.value / 2, boxPlotScaleM
   y: boxPlotY(value, boxPlotScaleMax.value),
   label: formatCompactCount(value),
 })))
-const boxPlotRows = computed(() => chunkItems(boxPlotPoints.value, BOXPLOT_HOURS_PER_ROW).map((points) => ({
-  label: hourRangeLabel(points.map((point) => point.hour)),
-  boxes: buildBoxPlotView(points),
-})))
-const heatmapSections = computed(() => {
-  const hourRows = chunkItems(props.points.map((point) => point.hour), HEATMAP_HOURS_PER_ROW)
-  return hourRows.map((hours) => ({
-    label: hourRangeLabel(hours),
-    hours,
-    rows: heatmapRows.value.map((row) => ({
-      label: row.label,
-      cells: row.cells.filter((cell) => hours.includes(cell.hour)),
-    })),
-  }))
-})
-
-function buildBoxPlotView(points: HourlyProfileBoxPlotPoint[]) {
+const boxPlotView = computed(() => {
+  const points = boxPlotPoints.value
   const plotWidth = BOXPLOT_RIGHT - BOXPLOT_LEFT
   const slot = plotWidth / Math.max(points.length - 1, 1)
-  const boxWidth = Math.min(34, Math.max(14, slot * 0.55))
+  const boxWidth = Math.min(22, Math.max(10, slot * 0.55))
   return points.map((point, index) => {
     const x = BOXPLOT_LEFT + slot * index
-    return buildBoxPlotViewPoint(point, x, boxWidth)
+    return buildBoxPlotViewPoint(point, x, boxWidth, index)
   })
-}
+})
 
 function pillClass(active: boolean): string {
   return active
@@ -393,7 +370,7 @@ function boxPlotY(value: number, scaleMax: number): number {
   return BOXPLOT_BOTTOM - ratio * (BOXPLOT_BOTTOM - BOXPLOT_TOP)
 }
 
-function buildBoxPlotViewPoint(point: HourlyProfileBoxPlotPoint, x: number, boxWidth: number) {
+function buildBoxPlotViewPoint(point: HourlyProfileBoxPlotPoint, x: number, boxWidth: number, index: number) {
   const yMin = boxPlotY(point.min, boxPlotScaleMax.value)
   const yMax = boxPlotY(point.max, boxPlotScaleMax.value)
   return {
@@ -408,6 +385,7 @@ function buildBoxPlotViewPoint(point: HourlyProfileBoxPlotPoint, x: number, boxW
     yQ3: boxPlotY(point.q3, boxPlotScaleMax.value),
     yMean: boxPlotY(point.mean, boxPlotScaleMax.value),
     meanLabel: `${formatCompactCount(point.mean)} tokens`,
+    showHour: index % 3 === 0,
   }
 }
 
@@ -416,19 +394,8 @@ function heatCellBackground(intensity: number): string {
   return `color-mix(in srgb, rgb(var(--apple-green)) ${percent}%, var(--apple-surface-strong))`
 }
 
-function chunkItems<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = []
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size))
-  }
-  return chunks
-}
-
-function hourRangeLabel(hours: string[]): string {
-  const first = hours[0] ?? ''
-  const last = hours[hours.length - 1] ?? ''
-  if (!first || !last) return ''
-  return `${first.replace(':00', '')}:00–${last.replace(':00', '')}:00`
+function showHeatmapHour(hour: string): boolean {
+  return Number(hour.slice(0, 2)) % 3 === 0
 }
 
 watch(() => [props.points, props.loading, props.error] as const, () => nextTick(renderChart), { deep: true })
