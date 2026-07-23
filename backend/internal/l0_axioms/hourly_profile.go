@@ -2,7 +2,7 @@ package l0_axioms
 
 import "time"
 
-// HourlyProfilePoint is one UTC hour bucket averaged across a historical window.
+// HourlyProfilePoint is one browser-local hour bucket averaged across a historical window.
 // Contract: avgTokens is totalTokens divided by the requested full-day window.
 type HourlyProfilePoint struct {
 	Hour        string  `json:"hour"`

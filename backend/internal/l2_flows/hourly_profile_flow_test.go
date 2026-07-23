@@ -9,17 +9,17 @@ import (
 
 func TestAggregateHourlyProfileInvalidDays(t *testing.T) {
 	filter := l0_axioms.MetricsFilter{IncludeCache: true}
-	if _, err := AggregateHourlyProfile(nil, filter, 14); err == nil {
+	if _, err := AggregateHourlyProfile(nil, filter, 14, "UTC"); err == nil {
 		t.Fatal("expected invalid days error")
 	}
 }
 
 func TestBuildHourlyProfileResponseFillsAllHours(t *testing.T) {
-	resp := buildHourlyProfileResponse(30, nil, time.Date(2026, 7, 23, 12, 0, 0, 0, time.UTC))
+	resp := buildHourlyProfileResponse(30, "Asia/Shanghai", nil, time.Date(2026, 7, 23, 12, 0, 0, 0, time.UTC))
 	if resp.Days != 30 {
 		t.Fatalf("days=%d want 30", resp.Days)
 	}
-	if resp.Timezone != "UTC" || resp.IntervalMin != 60 {
+	if resp.Timezone != "Asia/Shanghai" || resp.IntervalMin != 60 {
 		t.Fatalf("metadata timezone=%s interval=%d", resp.Timezone, resp.IntervalMin)
 	}
 	if len(resp.Points) != 24 {
@@ -37,7 +37,7 @@ func TestBuildHourlyProfileResponseFillsAllHours(t *testing.T) {
 }
 
 func TestBuildHourlyProfileResponseCalculatesTotalsAveragesAndPeak(t *testing.T) {
-	resp := buildHourlyProfileResponse(7, []l0_axioms.HourlyProfileAggregate{
+	resp := buildHourlyProfileResponse(7, "UTC", []l0_axioms.HourlyProfileAggregate{
 		{Hour: 9, TotalTokens: 7000, MaxTokens: 3000, Requests: 14, Cost: 1.25, ActiveDays: 3},
 		{Hour: 22, TotalTokens: 2100, MaxTokens: 1200, Requests: 7, Cost: 0.5, ActiveDays: 2},
 		{Hour: 99, TotalTokens: 9999, MaxTokens: 9999, Requests: 99, Cost: 9.9, ActiveDays: 9},
@@ -61,5 +61,12 @@ func TestBuildHourlyProfileResponseCalculatesTotalsAveragesAndPeak(t *testing.T)
 
 	if resp.Points[23].TotalTokens != 0 {
 		t.Fatalf("invalid hour aggregate should be ignored; 23:00=%#v", resp.Points[23])
+	}
+}
+
+func TestAggregateHourlyProfileRejectsInvalidTimezone(t *testing.T) {
+	filter := l0_axioms.MetricsFilter{IncludeCache: true}
+	if _, err := AggregateHourlyProfile(nil, filter, 7, "not/a-timezone"); err == nil {
+		t.Fatal("expected invalid timezone error")
 	}
 }

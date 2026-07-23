@@ -17,10 +17,17 @@ var allowedHourlyProfileDays = map[int]bool{
 	365: true,
 }
 
-// AggregateHourlyProfile builds a 24-hour UTC usage profile over a historical day window.
-func AggregateHourlyProfile(db *gorm.DB, filter l0_axioms.MetricsFilter, days int) (*l0_axioms.HourlyProfileResponse, error) {
+// AggregateHourlyProfile builds a 24-hour local-time usage profile over a historical day window.
+func AggregateHourlyProfile(db *gorm.DB, filter l0_axioms.MetricsFilter, days int, timezone string) (*l0_axioms.HourlyProfileResponse, error) {
 	if !allowedHourlyProfileDays[days] {
 		return nil, fmt.Errorf("days must be one of 7, 30, 90, 365")
+	}
+	if timezone == "" {
+		timezone = "UTC"
+	}
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		return nil, fmt.Errorf("invalid timezone: %s", timezone)
 	}
 
 	userID, err := resolveFilterUserID(db, filter)
@@ -28,16 +35,16 @@ func AggregateHourlyProfile(db *gorm.DB, filter l0_axioms.MetricsFilter, days in
 		return nil, err
 	}
 
-	now := time.Now().UTC()
-	endDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).Add(24 * time.Hour)
+	now := time.Now().In(location)
+	endDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location).AddDate(0, 0, 1)
 	startDay := endDay.AddDate(0, 0, -days)
 
-	aggregates, err := l1_blocks.GetHourlyProfileUsage(db, filter, userID, startDay, endDay)
+	aggregates, err := l1_blocks.GetHourlyProfileUsage(db, filter, userID, startDay, endDay, location.String())
 	if err != nil {
 		return nil, err
 	}
 
-	resp := buildHourlyProfileResponse(days, aggregates, time.Now().UTC())
+	resp := buildHourlyProfileResponse(days, location.String(), aggregates, time.Now().UTC())
 	resp.IncludeCache = filter.IncludeCache
 	resp.UserEmail = filter.UserEmail
 	return resp, nil
@@ -46,6 +53,7 @@ func AggregateHourlyProfile(db *gorm.DB, filter l0_axioms.MetricsFilter, days in
 // buildHourlyProfileResponse is pure hour padding and averaging for unit tests.
 func buildHourlyProfileResponse(
 	days int,
+	timezone string,
 	aggregates []l0_axioms.HourlyProfileAggregate,
 	now time.Time,
 ) *l0_axioms.HourlyProfileResponse {
@@ -72,7 +80,7 @@ func buildHourlyProfileResponse(
 
 	return &l0_axioms.HourlyProfileResponse{
 		Days:        days,
-		Timezone:    "UTC",
+		Timezone:    timezone,
 		IntervalMin: 60,
 		Points:      points,
 		Timestamp:   now,

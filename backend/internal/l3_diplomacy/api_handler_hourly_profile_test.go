@@ -22,4 +22,11 @@ func TestGetHourlyProfileRejectsInvalidDays(t *testing.T) {
 			t.Fatalf("days=%q status=%d want %d", days, response.Code, http.StatusBadRequest)
 		}
 	}
+
+	request := httptest.NewRequest(http.MethodGet, "/hourly-profile?days=7&timezone=not/a-timezone", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("invalid timezone status=%d want %d", response.Code, http.StatusBadRequest)
+	}
 }

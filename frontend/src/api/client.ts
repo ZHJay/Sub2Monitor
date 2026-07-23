@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios'
+import { getBrowserTimezone } from '../utils/browserTimezone'
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: '/api', timeout: 30_000, withCredentials: true,
@@ -23,7 +24,11 @@ export const SCOPE_USER_EMAILS = [
 ] as const
 export type ScopeUserEmail = (typeof SCOPE_USER_EMAILS)[number]
 export type UserScope = 'all' | ScopeUserEmail
-export interface MetricsQuery { includeCache?: boolean; userScope?: UserScope }
+export interface MetricsQuery {
+  includeCache?: boolean
+  userScope?: UserScope
+  timeZone?: string
+}
 
 export interface MetricsSummaryResponse {
   totalCost: number
@@ -123,5 +128,7 @@ export async function getIntradayHeatmap(date: string, query: MetricsQuery = {})
   return (await apiClient.get('/metrics/intraday-heatmap', { params: { date, ...metricsParams(query) } })).data
 }
 export async function getHourlyProfile(days = 30, query: MetricsQuery = {}): Promise<HourlyProfileResponse> {
-  return (await apiClient.get('/metrics/hourly-profile', { params: { days, ...metricsParams(query) } })).data
+  return (await apiClient.get('/metrics/hourly-profile', {
+    params: { days, ...metricsParams(query), timezone: query.timeZone || getBrowserTimezone() }
+  })).data
 }

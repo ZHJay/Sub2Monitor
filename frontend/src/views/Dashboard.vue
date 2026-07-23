@@ -115,14 +115,6 @@
           @close="closeIntraday"
         />
 
-        <HourlyProfileChart
-          :days="hourlyProfileDays"
-          :points="hourlyProfilePoints"
-          :loading="hourlyProfileLoading"
-          :error="hourlyProfileError"
-          @update:days="loadHourlyProfile"
-        />
-
         <TimeSeriesChart
           :timestamps="timeSeriesTimestamps"
           :series="timeSeriesSeries"
@@ -130,6 +122,15 @@
           v-model:metric="metric"
           @update:time-range="loadTimeSeries"
           @update:metric="loadTimeSeries"
+        />
+
+        <HourlyProfileChart
+          :days="hourlyProfileDays"
+          :timezone="hourlyProfileTimezone"
+          :points="hourlyProfilePoints"
+          :loading="hourlyProfileLoading"
+          :error="hourlyProfileError"
+          @update:days="loadHourlyProfile"
         />
 
         <ModelStatsTable :stats="modelStats" />
@@ -159,7 +160,7 @@ const {
   heatmapPoints, heatmapDays, heatmapError, timeRange, metric, successRate,
   includeCache, userScope, scopeLabel, SCOPE_USER_EMAILS,
   selectedDate, intradayPoints, intradayLoading, intradayError,
-  hourlyProfileDays, hourlyProfilePoints, hourlyProfileLoading, hourlyProfileError,
+  hourlyProfileDays, hourlyProfilePoints, hourlyProfileTimezone, hourlyProfileLoading, hourlyProfileError,
   refreshData, loadTimeSeries, loadHourlyProfile, setIncludeCache, setUserScope,
   selectDate, closeIntraday
 } = useDashboardMetrics()

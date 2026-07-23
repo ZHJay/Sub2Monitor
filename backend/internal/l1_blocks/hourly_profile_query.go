@@ -9,9 +9,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// GetHourlyProfileUsage aggregates usage by UTC hour across [start, end).
+// GetHourlyProfileUsage aggregates usage by hour in timezone across [start, end).
 // Contract: returns only non-empty hours; maxTokens is the maximum single-day total for that hour.
-func GetHourlyProfileUsage(db *gorm.DB, filter l0_axioms.MetricsFilter, userID int64, start, end time.Time) ([]l0_axioms.HourlyProfileAggregate, error) {
+func GetHourlyProfileUsage(db *gorm.DB, filter l0_axioms.MetricsFilter, userID int64, start, end time.Time, timezone string) ([]l0_axioms.HourlyProfileAggregate, error) {
 	if !end.After(start) {
 		return []l0_axioms.HourlyProfileAggregate{}, nil
 	}
@@ -26,11 +26,11 @@ func GetHourlyProfileUsage(db *gorm.DB, filter l0_axioms.MetricsFilter, userID i
 	}
 
 	perDayHour := applyMetricsFilter(db.Model(&l0_axioms.UsageLog{}), filter, userID).
-		Select(`date_trunc('day', created_at AT TIME ZONE 'UTC') AS day,
-			(extract(hour from created_at AT TIME ZONE 'UTC'))::int AS hour,
+		Select(`date_trunc('day', created_at AT TIME ZONE ?) AS day,
+			(extract(hour from created_at AT TIME ZONE ?))::int AS hour,
 			COALESCE(SUM`+tokenExpr(filter)+`, 0) AS tokens,
 			COALESCE(SUM(total_cost), 0) AS cost,
-			COUNT(*) AS requests`).
+			COUNT(*) AS requests`, timezone, timezone).
 		Where("created_at >= ? AND created_at < ?", start, end).
 		Group("day, hour")
 

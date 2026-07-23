@@ -43,6 +43,7 @@ export function useDashboardMetrics() {
   const intradayError = ref<string | null>(null)
   const hourlyProfileDays = ref(30)
   const hourlyProfilePoints = ref<HourlyProfilePoint[]>([])
+  const hourlyProfileTimezone = ref('UTC')
   const hourlyProfileLoading = ref(false)
   const hourlyProfileError = ref<string | null>(null)
 
@@ -146,11 +147,13 @@ export function useDashboardMetrics() {
       const response = await getHourlyProfile(days, query.value)
       if (requestSequence === hourlyProfileRequestSequence) {
         hourlyProfilePoints.value = response.points || []
+        hourlyProfileTimezone.value = response.timezone || 'UTC'
       }
     } catch (err: any) {
       if (requestSequence === hourlyProfileRequestSequence) {
         hourlyProfileError.value = err.message || 'Failed to load hourly profile'
         hourlyProfilePoints.value = []
+        hourlyProfileTimezone.value = 'UTC'
       }
     } finally {
       if (requestSequence === hourlyProfileRequestSequence) {
@@ -208,7 +211,7 @@ export function useDashboardMetrics() {
     heatmapPoints, heatmapDays, heatmapError, timeRange, metric, successRate,
     includeCache, userScope, scopeLabel, PERSONAL_USER_EMAIL, SCOPE_USER_EMAILS,
     selectedDate, intradayPoints, intradayLoading, intradayError,
-    hourlyProfileDays, hourlyProfilePoints, hourlyProfileLoading, hourlyProfileError,
+    hourlyProfileDays, hourlyProfilePoints, hourlyProfileTimezone, hourlyProfileLoading, hourlyProfileError,
     refreshData, loadTimeSeries, loadHourlyProfile, setIncludeCache, setUserScope,
     selectDate, closeIntraday
   }

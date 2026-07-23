@@ -3,7 +3,7 @@
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 class="text-[15px] font-semibold tracking-tight text-apple-text">Hourly usage profile</h2>
-        <p class="mt-1 text-xs text-apple-muted">过去 {{ days }} 天 · UTC · 每小时平均 Token</p>
+        <p class="mt-1 text-xs text-apple-muted">过去 {{ days }} 天 · {{ timezone }} · 每小时平均 Token</p>
       </div>
       <div class="flex gap-1">
         <button
@@ -18,14 +18,23 @@
 
     <div v-if="loading" class="flex h-72 items-center justify-center text-sm text-apple-muted">Loading hourly profile…</div>
     <div v-else-if="error" class="flex h-72 items-center justify-center rounded-xl border border-red-500/30 bg-red-500/10 px-3 text-sm text-red-300">{{ error }}</div>
-    <div v-else class="h-72">
-      <canvas ref="canvas" role="img" :aria-label="`Average token usage by UTC hour over the past ${days} days`"></canvas>
+    <div v-else class="space-y-4">
+      <dl class="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        <div v-for="item in summaryItems" :key="item.label" class="rounded-xl border border-apple-line bg-apple-surface-strong px-3 py-2">
+          <dt class="text-[10px] uppercase tracking-[0.06em] text-apple-muted">{{ item.label }}</dt>
+          <dd class="mt-1 truncate text-sm font-semibold text-apple-text">{{ item.value }}</dd>
+          <p v-if="item.detail" class="mt-0.5 truncate text-[10px] text-apple-muted">{{ item.detail }}</p>
+        </div>
+      </dl>
+      <div class="h-72">
+        <canvas ref="canvas" role="img" :aria-label="`Average token usage by ${timezone} hour over the past ${days} days`"></canvas>
+      </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   BarController,
   BarElement,
@@ -36,7 +45,7 @@ import {
   type ChartConfiguration,
 } from 'chart.js'
 import type { HourlyProfilePoint } from '../api/client'
-import { formatHourlyProfileTooltip } from '../metrics/hourlyProfilePresentation'
+import { buildHourlyProfileSummary, formatHourlyProfileTooltip } from '../metrics/hourlyProfilePresentation'
 import { formatCompactCount } from '../metrics/metricValuePresentation'
 import { useTheme } from '../composables/useTheme'
 import { readChartChromeColors } from '../theme/themeTokens'
@@ -45,6 +54,7 @@ Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip)
 
 const props = defineProps<{
   days: number
+  timezone: string
   points: HourlyProfilePoint[]
   loading?: boolean
   error?: string | null
@@ -55,6 +65,8 @@ const dayOptions = [7, 30, 90, 365]
 const canvas = ref<HTMLCanvasElement | null>(null)
 const { resolvedTheme } = useTheme()
 let chart: Chart<'bar'> | null = null
+
+const summaryItems = computed(() => buildHourlyProfileSummary(props.points, props.days))
 
 function pillClass(active: boolean): string {
   return active
@@ -94,7 +106,7 @@ function buildConfig(): ChartConfiguration<'bar'> {
           borderWidth: 1,
           callbacks: {
             title(items) {
-              return `${props.points[items[0]?.dataIndex ?? 0]?.hour ?? ''} UTC`
+              return `${props.points[items[0]?.dataIndex ?? 0]?.hour ?? ''} ${props.timezone}`
             },
             label(items) {
               const point = props.points[items.dataIndex]

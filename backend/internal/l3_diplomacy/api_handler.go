@@ -122,7 +122,12 @@ func (handler *APIHandler) GetHourlyProfile(c *gin.Context) {
 		}
 		days = parsed
 	}
-	response, err := l2_flows.AggregateHourlyProfile(handler.DB, parseMetricsFilter(c), days)
+	response, err := l2_flows.AggregateHourlyProfile(
+		handler.DB,
+		parseMetricsFilter(c),
+		days,
+		c.DefaultQuery("timezone", "UTC"),
+	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid metrics query"})
 		return
