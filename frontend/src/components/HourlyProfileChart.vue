@@ -41,7 +41,7 @@
         </div>
       </figure>
 
-      <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div class="space-y-4">
         <figure class="rounded-xl border border-apple-line bg-apple-surface-strong p-3">
           <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
             <figcaption class="text-[11px] uppercase tracking-[0.06em] text-apple-muted">
