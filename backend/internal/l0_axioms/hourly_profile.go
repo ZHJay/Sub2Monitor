@@ -7,8 +7,10 @@ import "time"
 type HourlyProfilePoint struct {
 	Hour        string  `json:"hour"`
 	AvgTokens   float64 `json:"avgTokens"`
+	PeakTokens  int64   `json:"peakTokens"`
 	TotalTokens int64   `json:"totalTokens"`
-	MaxTokens   int64   `json:"maxTokens"`
+	MaxTokens   int64   `json:"maxTokens"` // IQR-filtered upper bound.
+	MinTokens   int64   `json:"minTokens"` // IQR-filtered lower bound.
 	Requests    int64   `json:"requests"`
 	Cost        float64 `json:"cost"`
 	ActiveDays  int64   `json:"activeDays"`
@@ -25,12 +27,11 @@ type HourlyProfileResponse struct {
 	Timestamp    time.Time            `json:"timestamp"`
 }
 
-// HourlyProfileAggregate is a raw per-hour historical aggregate before padding.
-type HourlyProfileAggregate struct {
-	Hour        int
-	TotalTokens int64
-	MaxTokens   int64
-	Requests    int64
-	Cost        float64
-	ActiveDays  int64
+// HourlyProfileDailyAggregate is one local calendar-day total for one hour.
+type HourlyProfileDailyAggregate struct {
+	Date     string
+	Hour     int
+	Tokens   int64
+	Requests int64
+	Cost     float64
 }

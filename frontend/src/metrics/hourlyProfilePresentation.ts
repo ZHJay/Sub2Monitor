@@ -7,51 +7,41 @@ export interface HourlyProfileSummaryItem {
   detail?: string
 }
 
-export function formatHourlyProfileTooltip(point: HourlyProfilePoint): string[] {
-  return [
-    `平均: ${formatCompactCount(point.avgTokens)} tokens`,
-    `总量: ${formatCompactCount(point.totalTokens)} tokens`,
-    `峰值: ${formatCompactCount(point.maxTokens)} tokens`,
-    `请求: ${formatCompactCount(point.requests)}`,
-    `成本: $${point.cost.toFixed(2)}`,
-    `活跃天数: ${point.activeDays}`,
-  ]
-}
-
 export function buildHourlyProfileSummary(
   points: HourlyProfilePoint[],
-  days: number,
 ): HourlyProfileSummaryItem[] {
-  const totals = points.reduce((acc, point) => ({
-    tokens: acc.tokens + point.totalTokens,
-    requests: acc.requests + point.requests,
-    cost: acc.cost + point.cost,
-    activeHourDays: acc.activeHourDays + point.activeDays,
-  }), { tokens: 0, requests: 0, cost: 0, activeHourDays: 0 })
-  const peakAverage = points.reduce<HourlyProfilePoint | null>(
-    (peak, point) => !peak || point.avgTokens > peak.avgTokens ? point : peak,
+  const average = points.reduce((total, point) => total + point.avgTokens, 0) / Math.max(points.length, 1)
+  const usedPoints = points.filter((point) => point.peakTokens > 0)
+  const peak = usedPoints.reduce<HourlyProfilePoint | null>(
+    (highest, point) => !highest || point.peakTokens > highest.peakTokens ? point : highest,
     null,
   )
-  const maxSingleBucket = points.reduce(
-    (peak, point) => Math.max(peak, point.maxTokens),
-    0,
+  const maximum = usedPoints.reduce<HourlyProfilePoint | null>(
+    (highest, point) => !highest || point.maxTokens > highest.maxTokens ? point : highest,
+    null,
   )
-  const hasUsage = totals.tokens > 0
+  const minimum = usedPoints.reduce<HourlyProfilePoint | null>(
+    (lowest, point) => !lowest || point.minTokens < lowest.minTokens ? point : lowest,
+    null,
+  )
+  const hasUsage = (peak?.peakTokens ?? 0) > 0
 
   return [
-    { label: '总 Tokens', value: formatCompactCount(totals.tokens) },
-    { label: '日均 Tokens', value: formatCompactCount(totals.tokens / Math.max(days, 1)) },
+    { label: '均值', value: formatCompactCount(average) },
     {
-      label: '高峰时段',
-      value: hasUsage ? peakAverage?.hour ?? '—' : '—',
-      detail: hasUsage && peakAverage ? `均值 ${formatCompactCount(peakAverage.avgTokens)}` : '',
+      label: '最高峰值',
+      value: hasUsage && peak ? formatCompactCount(peak.peakTokens) : '—',
+      detail: hasUsage && peak ? peak.hour : '',
     },
-    { label: '单日时段峰值', value: formatCompactCount(maxSingleBucket) },
-    { label: '请求数', value: formatCompactCount(totals.requests) },
     {
-      label: '总成本',
-      value: `$${totals.cost.toFixed(2)}`,
-      detail: `活跃小时天次 ${formatCompactCount(totals.activeHourDays)}`,
+      label: '最大值（去异常）',
+      value: hasUsage && maximum ? formatCompactCount(maximum.maxTokens) : '—',
+      detail: hasUsage && maximum ? maximum.hour : '',
+    },
+    {
+      label: '最小值（去异常）',
+      value: hasUsage && minimum ? formatCompactCount(minimum.minTokens) : '—',
+      detail: hasUsage && minimum ? minimum.hour : '',
     },
   ]
 }

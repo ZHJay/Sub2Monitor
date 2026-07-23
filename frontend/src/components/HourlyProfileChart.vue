@@ -3,7 +3,7 @@
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 class="text-[15px] font-semibold tracking-tight text-apple-text">Hourly usage profile</h2>
-        <p class="mt-1 text-xs text-apple-muted">过去 {{ days }} 天 · {{ timezone }} · 每小时平均 Token</p>
+        <p class="mt-1 text-xs text-apple-muted">过去 {{ days }} 天 · {{ timezone }} · 严重离群值已从最大/最小范围中剔除</p>
       </div>
       <div class="flex gap-1">
         <button
@@ -36,21 +36,23 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
-  BarController,
-  BarElement,
   CategoryScale,
   Chart,
+  Filler,
+  LineController,
+  LineElement,
   LinearScale,
+  PointElement,
   Tooltip,
   type ChartConfiguration,
 } from 'chart.js'
 import type { HourlyProfilePoint } from '../api/client'
-import { buildHourlyProfileSummary, formatHourlyProfileTooltip } from '../metrics/hourlyProfilePresentation'
+import { buildHourlyProfileSummary } from '../metrics/hourlyProfilePresentation'
 import { formatCompactCount } from '../metrics/metricValuePresentation'
 import { useTheme } from '../composables/useTheme'
 import { readChartChromeColors } from '../theme/themeTokens'
 
-Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip)
+Chart.register(CategoryScale, LinearScale, PointElement, LineElement, LineController, Filler, Tooltip)
 
 const props = defineProps<{
   days: number
@@ -64,9 +66,9 @@ defineEmits<{ 'update:days': [value: number] }>()
 const dayOptions = [7, 30, 90, 365]
 const canvas = ref<HTMLCanvasElement | null>(null)
 const { resolvedTheme } = useTheme()
-let chart: Chart<'bar'> | null = null
+let chart: Chart<'line'> | null = null
 
-const summaryItems = computed(() => buildHourlyProfileSummary(props.points, props.days))
+const summaryItems = computed(() => buildHourlyProfileSummary(props.points))
 
 function pillClass(active: boolean): string {
   return active
@@ -74,21 +76,53 @@ function pillClass(active: boolean): string {
     : 'rounded-full border border-apple-line bg-apple-surface-strong px-3 py-1.5 text-xs font-medium text-apple-muted hover:text-apple-text'
 }
 
-function buildConfig(): ChartConfiguration<'bar'> {
+function buildConfig(): ChartConfiguration<'line'> {
   const chrome = readChartChromeColors()
   return {
-    type: 'bar',
+    type: 'line',
     data: {
       labels: props.points.map((point) => point.hour),
-      datasets: [{
-        label: '平均 Tokens',
-        data: props.points.map((point) => point.avgTokens),
-        backgroundColor: 'rgba(48, 209, 88, 0.65)',
-        borderColor: '#30d158',
-        borderWidth: 1,
-        borderRadius: 5,
-        maxBarThickness: 28,
-      }],
+      datasets: [
+        {
+          label: '均值',
+          data: props.points.map((point) => point.avgTokens),
+          borderColor: '#30d158',
+          backgroundColor: 'rgba(48, 209, 88, 0.12)',
+          borderWidth: 2.5,
+          pointRadius: 2,
+          pointHoverRadius: 4,
+          tension: 0.25,
+        },
+        {
+          label: '最高峰值',
+          data: props.points.map((point) => point.peakTokens),
+          borderColor: '#ff9f0a',
+          borderWidth: 2,
+          pointRadius: 1.5,
+          pointHoverRadius: 4,
+          tension: 0.2,
+        },
+        {
+          label: '最大值（去异常）',
+          data: props.points.map((point) => point.maxTokens),
+          borderColor: '#0a84ff',
+          borderDash: [5, 4],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          pointHoverRadius: 3,
+          tension: 0.2,
+        },
+        {
+          label: '最小值（去异常）',
+          data: props.points.map((point) => point.minTokens),
+          borderColor: '#64d2ff',
+          borderDash: [5, 4],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          pointHoverRadius: 3,
+          tension: 0.2,
+        },
+      ],
     },
     options: {
       responsive: true,
@@ -96,7 +130,14 @@ function buildConfig(): ChartConfiguration<'bar'> {
       animation: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: false },
+        legend: {
+          display: true,
+          labels: {
+            color: chrome.tickColor,
+            boxWidth: 12,
+            usePointStyle: true,
+          },
+        },
         tooltip: {
           backgroundColor: chrome.tooltipBg,
           titleColor: chrome.titleColor,
@@ -109,12 +150,7 @@ function buildConfig(): ChartConfiguration<'bar'> {
               return `${props.points[items[0]?.dataIndex ?? 0]?.hour ?? ''} ${props.timezone}`
             },
             label(items) {
-              const point = props.points[items.dataIndex]
-              return point ? formatHourlyProfileTooltip(point)[0] : ''
-            },
-            afterLabel(items) {
-              const point = props.points[items.dataIndex]
-              return point ? formatHourlyProfileTooltip(point).slice(1) : []
+              return `${items.dataset.label}: ${formatCompactCount(Number(items.raw))} tokens`
             },
           },
         },

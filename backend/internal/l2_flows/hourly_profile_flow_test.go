@@ -30,37 +30,50 @@ func TestBuildHourlyProfileResponseFillsAllHours(t *testing.T) {
 		if p.Hour != wantHour {
 			t.Fatalf("point %d hour=%s want %s", i, p.Hour, wantHour)
 		}
-		if p.AvgTokens != 0 || p.TotalTokens != 0 || p.MaxTokens != 0 || p.Requests != 0 || p.Cost != 0 || p.ActiveDays != 0 {
+		if p.AvgTokens != 0 || p.PeakTokens != 0 || p.TotalTokens != 0 || p.MaxTokens != 0 || p.MinTokens != 0 || p.Requests != 0 || p.Cost != 0 || p.ActiveDays != 0 {
 			t.Fatalf("empty point %d not zero: %#v", i, p)
 		}
 	}
 }
 
-func TestBuildHourlyProfileResponseCalculatesTotalsAveragesAndPeak(t *testing.T) {
-	resp := buildHourlyProfileResponse(7, "UTC", []l0_axioms.HourlyProfileAggregate{
-		{Hour: 9, TotalTokens: 7000, MaxTokens: 3000, Requests: 14, Cost: 1.25, ActiveDays: 3},
-		{Hour: 22, TotalTokens: 2100, MaxTokens: 1200, Requests: 7, Cost: 0.5, ActiveDays: 2},
-		{Hour: 99, TotalTokens: 9999, MaxTokens: 9999, Requests: 99, Cost: 9.9, ActiveDays: 9},
+func TestBuildHourlyProfileResponseCalculatesAveragePeakAndFilteredBounds(t *testing.T) {
+	resp := buildHourlyProfileResponse(7, "UTC", []l0_axioms.HourlyProfileDailyAggregate{
+		{Date: "2026-07-16", Hour: 9, Tokens: 100, Requests: 2, Cost: 0.1},
+		{Date: "2026-07-17", Hour: 9, Tokens: 105, Requests: 2, Cost: 0.1},
+		{Date: "2026-07-18", Hour: 9, Tokens: 110, Requests: 2, Cost: 0.1},
+		{Date: "2026-07-19", Hour: 9, Tokens: 115, Requests: 2, Cost: 0.1},
+		{Date: "2026-07-20", Hour: 9, Tokens: 120, Requests: 2, Cost: 0.1},
+		{Date: "2026-07-21", Hour: 9, Tokens: 10000, Requests: 2, Cost: 1},
+		{Date: "2026-07-16", Hour: 22, Tokens: 900, Requests: 3, Cost: 0.3},
+		{Date: "2026-07-17", Hour: 22, Tokens: 1200, Requests: 4, Cost: 0.2},
+		{Date: "2026-07-16", Hour: 99, Tokens: 9999, Requests: 99, Cost: 9.9},
 	}, time.Date(2026, 7, 23, 12, 0, 0, 0, time.UTC))
 
 	nine := resp.Points[9]
 	if nine.Hour != "09:00" {
 		t.Fatalf("hour=%s want 09:00", nine.Hour)
 	}
-	if nine.AvgTokens != 1000 {
-		t.Fatalf("avg=%f want 1000", nine.AvgTokens)
+	if nine.AvgTokens != float64(10550)/7 {
+		t.Fatalf("avg=%f want %f", nine.AvgTokens, float64(10550)/7)
 	}
-	if nine.TotalTokens != 7000 || nine.MaxTokens != 3000 || nine.Requests != 14 || nine.Cost != 1.25 || nine.ActiveDays != 3 {
+	if nine.TotalTokens != 10550 || nine.PeakTokens != 10000 || nine.MaxTokens != 120 || nine.MinTokens != 100 || nine.Requests != 12 || nine.Cost != 1.5 || nine.ActiveDays != 6 {
 		t.Fatalf("unexpected 09:00 stats: %#v", nine)
 	}
 
 	twentyTwo := resp.Points[22]
-	if twentyTwo.AvgTokens != 300 || twentyTwo.TotalTokens != 2100 || twentyTwo.MaxTokens != 1200 || twentyTwo.ActiveDays != 2 {
+	if twentyTwo.AvgTokens != 300 || twentyTwo.TotalTokens != 2100 || twentyTwo.PeakTokens != 1200 || twentyTwo.MaxTokens != 1200 || twentyTwo.MinTokens != 0 || twentyTwo.ActiveDays != 2 {
 		t.Fatalf("unexpected 22:00 stats: %#v", twentyTwo)
 	}
 
 	if resp.Points[23].TotalTokens != 0 {
 		t.Fatalf("invalid hour aggregate should be ignored; 23:00=%#v", resp.Points[23])
+	}
+}
+
+func TestFilteredProfileBoundsDropsBothSevereTails(t *testing.T) {
+	min, max := filteredProfileBounds([]int64{0, 100, 105, 110, 115, 120, 10000})
+	if min != 100 || max != 120 {
+		t.Fatalf("bounds=%d..%d want 100..120", min, max)
 	}
 }
 

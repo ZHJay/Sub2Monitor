@@ -9,55 +9,44 @@ import (
 	"gorm.io/gorm"
 )
 
-// GetHourlyProfileUsage aggregates usage by hour in timezone across [start, end).
-// Contract: returns only non-empty hours; maxTokens is the maximum single-day total for that hour.
-func GetHourlyProfileUsage(db *gorm.DB, filter l0_axioms.MetricsFilter, userID int64, start, end time.Time, timezone string) ([]l0_axioms.HourlyProfileAggregate, error) {
+// GetHourlyProfileDailyUsage returns one non-empty local day/hour total across [start, end).
+// Boundary: L2 owns empty-day padding and outlier-filtered range calculation.
+func GetHourlyProfileDailyUsage(db *gorm.DB, filter l0_axioms.MetricsFilter, userID int64, start, end time.Time, timezone string) ([]l0_axioms.HourlyProfileDailyAggregate, error) {
 	if !end.After(start) {
-		return []l0_axioms.HourlyProfileAggregate{}, nil
+		return []l0_axioms.HourlyProfileDailyAggregate{}, nil
 	}
 
 	type row struct {
-		Hour        int     `gorm:"column:hour"`
-		TotalTokens int64   `gorm:"column:total_tokens"`
-		MaxTokens   int64   `gorm:"column:max_tokens"`
-		Requests    int64   `gorm:"column:requests"`
-		Cost        float64 `gorm:"column:cost"`
-		ActiveDays  int64   `gorm:"column:active_days"`
+		Date     string  `gorm:"column:date"`
+		Hour     int     `gorm:"column:hour"`
+		Tokens   int64   `gorm:"column:tokens"`
+		Requests int64   `gorm:"column:requests"`
+		Cost     float64 `gorm:"column:cost"`
 	}
 
-	perDayHour := applyMetricsFilter(db.Model(&l0_axioms.UsageLog{}), filter, userID).
-		Select(`date_trunc('day', created_at AT TIME ZONE ?) AS day,
+	var rows []row
+	err := applyMetricsFilter(db.Model(&l0_axioms.UsageLog{}), filter, userID).
+		Select(`to_char(created_at AT TIME ZONE ?, 'YYYY-MM-DD') AS date,
 			(extract(hour from created_at AT TIME ZONE ?))::int AS hour,
 			COALESCE(SUM`+tokenExpr(filter)+`, 0) AS tokens,
 			COALESCE(SUM(total_cost), 0) AS cost,
 			COUNT(*) AS requests`, timezone, timezone).
 		Where("created_at >= ? AND created_at < ?", start, end).
-		Group("day, hour")
-
-	var rows []row
-	err := db.Table("(?) AS per_day_hour", perDayHour).
-		Select(`hour,
-			COALESCE(SUM(tokens), 0) AS total_tokens,
-			COALESCE(MAX(tokens), 0) AS max_tokens,
-			COALESCE(SUM(requests), 0) AS requests,
-			COALESCE(SUM(cost), 0) AS cost,
-			COUNT(*) AS active_days`).
-		Group("hour").
-		Order("hour ASC").
+		Group("date, hour").
+		Order("date ASC, hour ASC").
 		Scan(&rows).Error
 	if err != nil {
-		return nil, fmt.Errorf("failed to query hourly profile usage: %w", err)
+		return nil, fmt.Errorf("failed to query hourly profile daily usage: %w", err)
 	}
 
-	out := make([]l0_axioms.HourlyProfileAggregate, 0, len(rows))
+	out := make([]l0_axioms.HourlyProfileDailyAggregate, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, l0_axioms.HourlyProfileAggregate{
-			Hour:        r.Hour,
-			TotalTokens: r.TotalTokens,
-			MaxTokens:   r.MaxTokens,
-			Requests:    r.Requests,
-			Cost:        r.Cost,
-			ActiveDays:  r.ActiveDays,
+		out = append(out, l0_axioms.HourlyProfileDailyAggregate{
+			Date:     r.Date,
+			Hour:     r.Hour,
+			Tokens:   r.Tokens,
+			Requests: r.Requests,
+			Cost:     r.Cost,
 		})
 	}
 	return out, nil
