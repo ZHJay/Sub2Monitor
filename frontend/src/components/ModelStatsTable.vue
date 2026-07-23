@@ -5,10 +5,21 @@
       <table class="min-w-full">
         <thead>
           <tr class="border-b border-apple-line text-left text-[11px] uppercase tracking-[0.05em] text-apple-muted">
-            <th class="px-3 py-3 font-medium">Model</th>
-            <th class="px-3 py-3 font-medium">Cost</th>
-            <th class="px-3 py-3 font-medium">Tokens</th>
-            <th class="px-3 py-3 font-medium">Requests</th>
+            <th
+              v-for="column in sortableColumns"
+              :key="column.key"
+              class="px-3 py-3 font-medium"
+              :aria-sort="ariaSort(column.key)"
+            >
+              <button
+                type="button"
+                class="-mx-1 inline-flex items-center gap-1 rounded px-1 py-0.5 transition-colors hover:text-apple-text focus:outline-none focus:ring-2 focus:ring-apple-green/60"
+                :aria-sort="ariaSort(column.key)"
+                @click="toggleSort(column.key)"
+              >
+                {{ column.label }} {{ sortIndicator(column.key) }}
+              </button>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -30,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { formatCompactCount } from '../metrics/metricValuePresentation'
 
 interface ModelStats {
@@ -44,9 +55,55 @@ const props = defineProps<{
   stats: ModelStats[]
 }>()
 
+type SortKey = keyof ModelStats
+type SortDirection = 'asc' | 'desc'
+
+const sortableColumns: { key: SortKey; label: string }[] = [
+  { key: 'model', label: 'Model' },
+  { key: 'cost', label: 'Cost' },
+  { key: 'tokens', label: 'Tokens' },
+  { key: 'requests', label: 'Requests' },
+]
+
+const sortKey = ref<SortKey>('cost')
+const sortDirection = ref<SortDirection>('desc')
+
 const sortedStats = computed(() => {
-  return [...props.stats].sort((a, b) => b.cost - a.cost)
+  const direction = sortDirection.value === 'asc' ? 1 : -1
+  return [...props.stats].sort((a, b) => {
+    const primary = compareStats(a, b, sortKey.value)
+    if (primary !== 0) return primary * direction
+    return a.model.localeCompare(b.model)
+  })
 })
+
+function compareStats(a: ModelStats, b: ModelStats, key: SortKey): number {
+  if (key === 'model') return a.model.localeCompare(b.model)
+  return a[key] - b[key]
+}
+
+function defaultDirection(key: SortKey): SortDirection {
+  return key === 'model' ? 'asc' : 'desc'
+}
+
+function toggleSort(key: SortKey) {
+  if (sortKey.value === key) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
+    return
+  }
+  sortKey.value = key
+  sortDirection.value = defaultDirection(key)
+}
+
+function sortIndicator(key: SortKey): string {
+  if (sortKey.value !== key) return ''
+  return sortDirection.value === 'asc' ? '↑' : '↓'
+}
+
+function ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
+  if (sortKey.value !== key) return 'none'
+  return sortDirection.value === 'asc' ? 'ascending' : 'descending'
+}
 
 function formatNumber(num: number): string {
   return formatCompactCount(num)
