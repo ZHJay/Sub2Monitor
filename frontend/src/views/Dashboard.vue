@@ -70,7 +70,7 @@
 
       <div v-else-if="summary" class="space-y-5">
         <section class="rounded-2xl border border-apple-line bg-apple-surface p-6 shadow-glass backdrop-blur-xl">
-          <div class="text-[11px] uppercase tracking-[0.06em] text-apple-muted">Total Cost · 累计成本</div>
+          <h2 class="text-[11px] uppercase tracking-[0.06em] text-apple-muted">Total Cost · 累计成本</h2>
           <div class="mt-2 text-5xl font-semibold tracking-tight">
             <RollingNumber :value="`$${summary.totalCost.toFixed(2)}`" />
           </div>

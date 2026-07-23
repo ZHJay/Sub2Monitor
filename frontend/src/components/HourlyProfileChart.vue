@@ -2,7 +2,7 @@
   <section class="rounded-2xl border border-apple-line bg-apple-surface p-5 shadow-glass backdrop-blur-xl">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h2 class="text-[15px] font-semibold tracking-tight text-apple-text">Hourly usage profile</h2>
+        <h2 class="text-[11px] uppercase tracking-[0.06em] text-apple-muted">Hourly usage profile</h2>
         <p class="mt-1 text-xs text-apple-muted">
           过去 {{ days }} 天 · {{ timezone }} · IQR = P25–P75；箱线须为 Tukey-filtered inlier range
         </p>

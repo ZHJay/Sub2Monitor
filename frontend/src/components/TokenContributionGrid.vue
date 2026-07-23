@@ -2,7 +2,7 @@
   <div class="rounded-2xl border border-apple-line bg-apple-surface p-5 shadow-glass backdrop-blur-xl">
     <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <div class="text-[15px] font-semibold tracking-tight text-apple-text">Token activity</div>
+        <h2 class="text-[11px] uppercase tracking-[0.06em] text-apple-muted">Token activity</h2>
         <div class="mt-1 text-xs text-apple-muted">近 {{ days }} 天 · 点击日期查看半小时贡献（UTC）</div>
       </div>
       <div class="flex items-center gap-1 text-[11px] text-apple-muted">
