@@ -49,9 +49,9 @@
             </figcaption>
             <p class="text-[10px] text-apple-muted">box = IQR · line = median · dot = mean</p>
           </div>
-          <div class="overflow-x-auto">
+          <div class="overflow-hidden">
             <svg
-              class="min-w-[760px]"
+              class="h-auto w-full overflow-visible"
               :viewBox="`0 0 ${BOXPLOT_WIDTH} ${BOXPLOT_HEIGHT}`"
               role="img"
               :aria-label="`Boxplot strip of hourly token distribution over ${days} days`"
@@ -145,29 +145,29 @@
             </figcaption>
             <p class="text-[10px] text-apple-muted">每一行单独归一化，颜色越深表示该统计量越高</p>
           </div>
-          <div class="overflow-x-auto">
-            <div class="min-w-[760px] space-y-1">
+          <div class="overflow-hidden">
+            <div class="space-y-1">
               <div
                 v-for="row in heatmapRows"
                 :key="row.label"
-                class="grid items-center gap-1"
+                class="grid items-center gap-0.5 sm:gap-1"
                 :style="{ gridTemplateColumns: heatmapGridColumns }"
               >
                 <div class="truncate pr-2 text-[10px] uppercase tracking-[0.04em] text-apple-muted">{{ row.label }}</div>
                 <div
                   v-for="cell in row.cells"
                   :key="`${row.label}-${cell.hour}`"
-                  class="h-6 rounded-[4px] border border-apple-line"
+                  class="h-5 rounded-[3px] border border-apple-line sm:h-6 sm:rounded-[4px]"
                   :style="{ background: heatCellBackground(cell.intensity) }"
                   :title="`${cell.hour} · ${row.label}: ${cell.label}`"
                 ></div>
               </div>
-              <div class="grid items-center gap-1 pt-1" :style="{ gridTemplateColumns: heatmapGridColumns }">
+              <div class="grid items-center gap-0.5 pt-1 sm:gap-1" :style="{ gridTemplateColumns: heatmapGridColumns }">
                 <div></div>
                 <div
                   v-for="point in points"
                   :key="`hour-${point.hour}`"
-                  class="text-center text-[9px] text-apple-muted"
+                  class="text-center text-[8px] text-apple-muted sm:text-[9px]"
                 >{{ showHeatmapHour(point.hour) ? point.hour.replace(':00', '') : '' }}</div>
               </div>
             </div>
@@ -228,7 +228,7 @@ let chart: Chart<'line'> | null = null
 
 const summaryItems = computed(() => buildHourlyProfileSummary(props.points, props.days))
 const heatmapRows = computed(() => buildHourlyProfileHeatmapRows(props.points, props.days))
-const heatmapGridColumns = computed(() => `6rem repeat(${Math.max(props.points.length, 1)}, minmax(1.45rem, 1fr))`)
+const heatmapGridColumns = computed(() => `clamp(3.6rem, 18%, 6rem) repeat(${Math.max(props.points.length, 1)}, minmax(0, 1fr))`)
 const boxPlotPoints = computed(() => buildHourlyProfileBoxPlotPoints(props.points))
 const boxPlotScaleMax = computed(() => hourlyProfileScaleMax(boxPlotPoints.value))
 const boxPlotTicks = computed(() => [0, boxPlotScaleMax.value / 2, boxPlotScaleMax.value].map((value) => ({
