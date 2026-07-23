@@ -111,10 +111,11 @@ describe('formatYAxisTick', () => {
     expect(formatYAxisTick(1500, 'cost')).toBe('$1.5K')
   })
 
-  it('formats token ticks with K/M', () => {
+  it('formats token ticks with K/M/B and two decimals', () => {
     expect(formatYAxisTick(900, 'tokens')).toBe('900')
-    expect(formatYAxisTick(12_500, 'tokens')).toBe('12.5K')
-    expect(formatYAxisTick(2_500_000, 'tokens')).toBe('2.5M')
+    expect(formatYAxisTick(12_500, 'tokens')).toBe('12.50K')
+    expect(formatYAxisTick(2_500_000, 'tokens')).toBe('2.50M')
+    expect(formatYAxisTick(1_250_000_000, 'tokens')).toBe('1.25B')
   })
 })
 

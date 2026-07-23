@@ -31,6 +31,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { formatCompactCount } from '../metrics/metricValuePresentation'
 
 interface ModelStats {
   model: string
@@ -48,12 +49,6 @@ const sortedStats = computed(() => {
 })
 
 function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return `${(num / 1000000).toFixed(1)}M`
-  }
-  if (num >= 1000) {
-    return `${(num / 1000).toFixed(1)}K`
-  }
-  return num.toString()
+  return formatCompactCount(num)
 }
 </script>

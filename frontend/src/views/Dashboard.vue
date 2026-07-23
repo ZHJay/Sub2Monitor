@@ -91,7 +91,7 @@
           <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <MetricCard title="Hourly Rate" :value="summary.hourlyCost" unit="/hr" />
             <MetricCard title="Total Tokens" :value="summary.totalTokens" />
-            <MetricCard title="Requests" :value="`${summary.requests.success}/${summary.requests.total}`" />
+            <MetricCard title="Requests" :value="summary.requests.total" />
             <MetricCard title="Success Rate" :value="successRate" unit="%" />
             <MetricCard title="Models" :value="modelStats.length" />
             <MetricCard title="Cache Hit Rate" :value="formatCacheHitRate(summary.cacheHitRate)" unit="%" />

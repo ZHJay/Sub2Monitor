@@ -16,7 +16,7 @@
 // Layer: L1 积木层 — 指标卡；刷新时由 RollingNumber 做位级差分动画。
 import { computed } from 'vue'
 import RollingNumber from './RollingNumber.vue'
-import { metricValueFontSize } from '../metrics/metricValuePresentation'
+import { formatCompactCount, metricValueFontSize } from '../metrics/metricValuePresentation'
 
 interface Props {
   title: string
@@ -34,9 +34,7 @@ const formattedValue = computed(() => {
     if (props.title.includes('Cost') || props.title.includes('$') || props.title.includes('Hourly')) {
       return `$${val.toFixed(2)}`
     }
-    if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`
-    if (val >= 1000) return `${(val / 1000).toFixed(1)}K`
-    return val.toFixed(0)
+    return formatCompactCount(val)
   }
   return val
 })

@@ -1,4 +1,5 @@
 import type { ChartDataset } from 'chart.js'
+import { formatCompactCount } from '../metrics/metricValuePresentation'
 
 // Layer: L1 积木层
 // Boundary: pure chart series shaping; no DOM / Chart instance.
@@ -90,9 +91,7 @@ function colorForStackIndex(index: number, count: number): { fill: string; strok
 
 export function formatMetricValue(v: number, metric: string): string {
   if (metric === 'cost') return `$${v.toFixed(2)}`
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
-  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`
-  return v.toFixed(0)
+  return formatCompactCount(v)
 }
 
 /**
@@ -109,9 +108,7 @@ export function formatYAxisTick(n: number, metric: string): string {
     if (abs >= 10) return `$${n.toFixed(1)}`
     return `$${n.toFixed(2)}`
   }
-  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (abs >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return n.toFixed(0)
+  return formatCompactCount(n)
 }
 
 /** Fixed Y-axis slot (px) so tick-string length never resizes the time axis. */

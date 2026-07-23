@@ -14,6 +14,7 @@ import {
   type IntradayHeatPoint,
   type UserScope
 } from '../api/client'
+import { formatCompactCount } from '../metrics/metricValuePresentation'
 import { createRefreshDeadlineScheduler } from '../refresh/refreshDeadlineScheduler'
 
 // Layer: L2 流程层（前端）
@@ -183,7 +184,5 @@ export function useDashboardMetrics() {
 }
 
 export function formatTokens(num: number): string {
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`
-  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`
-  return String(num)
+  return formatCompactCount(num)
 }

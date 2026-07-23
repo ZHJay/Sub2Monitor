@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { metricValueFontSize } from './metricValuePresentation'
+import { formatCompactCount, metricValueFontSize } from './metricValuePresentation'
+
+describe('formatCompactCount', () => {
+  it('keeps small counts as whole totals', () => {
+    expect(formatCompactCount(999)).toBe('999')
+    expect(formatCompactCount(12.4)).toBe('12')
+  })
+
+  it('abbreviates thousands, millions, and billions with two decimals', () => {
+    expect(formatCompactCount(1_234)).toBe('1.23K')
+    expect(formatCompactCount(1_234_567)).toBe('1.23M')
+    expect(formatCompactCount(1_234_567_890)).toBe('1.23B')
+  })
+})
 
 describe('metricValueFontSize', () => {
   it('keeps short values at the maximum size', () => {

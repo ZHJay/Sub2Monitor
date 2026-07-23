@@ -1,4 +1,6 @@
 // Pure date/token display helpers for the contribution grid.
+import { formatCompactCount } from '../metrics/metricValuePresentation'
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export function parseUTCDate(value: string): Date {
@@ -19,9 +21,7 @@ export function formatDayLabel(value: string): string {
 }
 
 export function formatTokens(num: number): string {
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(num >= 10_000_000 ? 0 : 1)}M`
-  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`
-  return String(num)
+  return formatCompactCount(num)
 }
 
 export function monthShort(monthIndex: number): string {
