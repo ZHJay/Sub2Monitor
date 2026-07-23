@@ -75,6 +75,9 @@ export interface IntradayHeatmapResponse {
 export interface HourlyProfilePoint {
   hour: string
   avgTokens: number
+  q1Tokens: number
+  medianTokens: number
+  q3Tokens: number
   peakTokens: number
   totalTokens: number
   maxTokens: number

@@ -93,17 +93,21 @@ func buildHourlyProfileResponse(
 			values = append(values, 0)
 		}
 		peakTokens := maxInt64(values)
+		q1Tokens, medianTokens, q3Tokens := profileQuantiles(values)
 		minTokens, maxTokens := filteredProfileBounds(values)
 		points = append(points, l0_axioms.HourlyProfilePoint{
-			Hour:        fmt.Sprintf("%02d:00", h),
-			AvgTokens:   float64(stats.total) / float64(days),
-			PeakTokens:  peakTokens,
-			TotalTokens: stats.total,
-			MaxTokens:   maxTokens,
-			MinTokens:   minTokens,
-			Requests:    stats.requests,
-			Cost:        stats.cost,
-			ActiveDays:  stats.activeDays,
+			Hour:         fmt.Sprintf("%02d:00", h),
+			AvgTokens:    float64(stats.total) / float64(days),
+			PeakTokens:   peakTokens,
+			TotalTokens:  stats.total,
+			MaxTokens:    maxTokens,
+			MinTokens:    minTokens,
+			Q1Tokens:     q1Tokens,
+			MedianTokens: medianTokens,
+			Q3Tokens:     q3Tokens,
+			Requests:     stats.requests,
+			Cost:         stats.cost,
+			ActiveDays:   stats.activeDays,
 		})
 	}
 
@@ -114,6 +118,15 @@ func buildHourlyProfileResponse(
 		Points:      points,
 		Timestamp:   now,
 	}
+}
+
+func profileQuantiles(values []int64) (int64, int64, int64) {
+	if len(values) == 0 {
+		return 0, 0, 0
+	}
+	sorted := append([]int64(nil), values...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+	return profileQuantile(sorted, 0.25), profileQuantile(sorted, 0.5), profileQuantile(sorted, 0.75)
 }
 
 // filteredProfileBounds excludes severe low/high daily-hour outliers using Tukey's 1.5×IQR fences.
