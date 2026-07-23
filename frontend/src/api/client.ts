@@ -67,6 +67,24 @@ export interface IntradayHeatmapResponse {
   points: IntradayHeatPoint[]; levels: { thresholds: number[]; maxTokens: number }
   includeCache?: boolean; userEmail?: string; timestamp: string
 }
+export interface HourlyProfilePoint {
+  hour: string
+  avgTokens: number
+  totalTokens: number
+  maxTokens: number
+  requests: number
+  cost: number
+  activeDays: number
+}
+export interface HourlyProfileResponse {
+  days: number
+  timezone: string
+  intervalMin: number
+  points: HourlyProfilePoint[]
+  includeCache?: boolean
+  userEmail?: string
+  timestamp: string
+}
 
 function metricsParams(query: MetricsQuery = {}) {
   const include_cache = query.includeCache === false ? 'false' : 'true'
@@ -103,4 +121,7 @@ export async function getDailyHeatmap(days = 365, metric = 'tokens', query: Metr
 }
 export async function getIntradayHeatmap(date: string, query: MetricsQuery = {}): Promise<IntradayHeatmapResponse> {
   return (await apiClient.get('/metrics/intraday-heatmap', { params: { date, ...metricsParams(query) } })).data
+}
+export async function getHourlyProfile(days = 30, query: MetricsQuery = {}): Promise<HourlyProfileResponse> {
+  return (await apiClient.get('/metrics/hourly-profile', { params: { days, ...metricsParams(query) } })).data
 }

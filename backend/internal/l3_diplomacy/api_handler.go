@@ -112,6 +112,24 @@ func (handler *APIHandler) GetIntradayHeatmap(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func (handler *APIHandler) GetHourlyProfile(c *gin.Context) {
+	days := 30
+	if raw := c.Query("days"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid metrics query"})
+			return
+		}
+		days = parsed
+	}
+	response, err := l2_flows.AggregateHourlyProfile(handler.DB, parseMetricsFilter(c), days)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid metrics query"})
+		return
+	}
+	c.JSON(http.StatusOK, response)
+}
+
 func (handler *APIHandler) HealthCheck(c *gin.Context) {
 	sqlDB, err := handler.DB.DB()
 	if err != nil || sqlDB.Ping() != nil {
@@ -140,4 +158,5 @@ func (handler *APIHandler) SetupRoutes(router *gin.Engine) {
 	metrics.GET("/by-model", handler.GetByModel)
 	metrics.GET("/daily-heatmap", handler.GetDailyHeatmap)
 	metrics.GET("/intraday-heatmap", handler.GetIntradayHeatmap)
+	metrics.GET("/hourly-profile", handler.GetHourlyProfile)
 }

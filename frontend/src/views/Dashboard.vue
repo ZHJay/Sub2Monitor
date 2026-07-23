@@ -115,6 +115,14 @@
           @close="closeIntraday"
         />
 
+        <HourlyProfileChart
+          :days="hourlyProfileDays"
+          :points="hourlyProfilePoints"
+          :loading="hourlyProfileLoading"
+          :error="hourlyProfileError"
+          @update:days="loadHourlyProfile"
+        />
+
         <TimeSeriesChart
           :timestamps="timeSeriesTimestamps"
           :series="timeSeriesSeries"
@@ -137,6 +145,7 @@ import TimeSeriesChart from '../components/TimeSeriesChart.vue'
 import ModelStatsTable from '../components/ModelStatsTable.vue'
 import TokenContributionGrid from '../components/TokenContributionGrid.vue'
 import IntradayContributionGrid from '../components/IntradayContributionGrid.vue'
+import HourlyProfileChart from '../components/HourlyProfileChart.vue'
 import ThemeSwitcher from '../components/ThemeSwitcher.vue'
 import { formatTokens, useDashboardMetrics } from '../composables/useDashboardMetrics'
 import { formatCacheHitRate } from '../metrics/cacheHitRateDisplay'
@@ -150,7 +159,8 @@ const {
   heatmapPoints, heatmapDays, heatmapError, timeRange, metric, successRate,
   includeCache, userScope, scopeLabel, SCOPE_USER_EMAILS,
   selectedDate, intradayPoints, intradayLoading, intradayError,
-  refreshData, loadTimeSeries, setIncludeCache, setUserScope,
+  hourlyProfileDays, hourlyProfilePoints, hourlyProfileLoading, hourlyProfileError,
+  refreshData, loadTimeSeries, loadHourlyProfile, setIncludeCache, setUserScope,
   selectDate, closeIntraday
 } = useDashboardMetrics()
 

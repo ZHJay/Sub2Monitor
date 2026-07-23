@@ -5,6 +5,7 @@ import {
   getByModel,
   getDailyHeatmap,
   getIntradayHeatmap,
+  getHourlyProfile,
   PERSONAL_USER_EMAIL,
   SCOPE_USER_EMAILS,
   type MetricsSummaryResponse,
@@ -12,6 +13,7 @@ import {
   type ModelStats,
   type DailyHeatPoint,
   type IntradayHeatPoint,
+  type HourlyProfilePoint,
   type UserScope
 } from '../api/client'
 import { formatCompactCount } from '../metrics/metricValuePresentation'
@@ -39,9 +41,14 @@ export function useDashboardMetrics() {
   const intradayPoints = ref<IntradayHeatPoint[]>([])
   const intradayLoading = ref(false)
   const intradayError = ref<string | null>(null)
+  const hourlyProfileDays = ref(30)
+  const hourlyProfilePoints = ref<HourlyProfilePoint[]>([])
+  const hourlyProfileLoading = ref(false)
+  const hourlyProfileError = ref<string | null>(null)
 
   let timeSeriesRequestSequence = 0
   let intradayRequestSequence = 0
+  let hourlyProfileRequestSequence = 0
 
   const query = computed(() => ({
     includeCache: includeCache.value,
@@ -130,6 +137,28 @@ export function useDashboardMetrics() {
     intradayError.value = null
   }
 
+  async function loadHourlyProfile(days = hourlyProfileDays.value) {
+    const requestSequence = ++hourlyProfileRequestSequence
+    hourlyProfileDays.value = days
+    hourlyProfileLoading.value = true
+    hourlyProfileError.value = null
+    try {
+      const response = await getHourlyProfile(days, query.value)
+      if (requestSequence === hourlyProfileRequestSequence) {
+        hourlyProfilePoints.value = response.points || []
+      }
+    } catch (err: any) {
+      if (requestSequence === hourlyProfileRequestSequence) {
+        hourlyProfileError.value = err.message || 'Failed to load hourly profile'
+        hourlyProfilePoints.value = []
+      }
+    } finally {
+      if (requestSequence === hourlyProfileRequestSequence) {
+        hourlyProfileLoading.value = false
+      }
+    }
+  }
+
   async function refreshDataOnce() {
     loading.value = true
     error.value = null
@@ -140,7 +169,8 @@ export function useDashboardMetrics() {
         }),
         loadTimeSeries(),
         getByModel(query.value).then((response) => { modelStats.value = response.data }),
-        loadHeatmap()
+        loadHeatmap(),
+        loadHourlyProfile(),
       ]
       if (selectedDate.value) tasks.push(loadIntraday(selectedDate.value))
       const results = await Promise.allSettled(tasks)
@@ -178,7 +208,8 @@ export function useDashboardMetrics() {
     heatmapPoints, heatmapDays, heatmapError, timeRange, metric, successRate,
     includeCache, userScope, scopeLabel, PERSONAL_USER_EMAIL, SCOPE_USER_EMAILS,
     selectedDate, intradayPoints, intradayLoading, intradayError,
-    refreshData, loadTimeSeries, setIncludeCache, setUserScope,
+    hourlyProfileDays, hourlyProfilePoints, hourlyProfileLoading, hourlyProfileError,
+    refreshData, loadTimeSeries, loadHourlyProfile, setIncludeCache, setUserScope,
     selectDate, closeIntraday
   }
 }
